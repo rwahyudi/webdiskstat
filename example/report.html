@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>webdiskstat - Generated 2026-04-26 17:45:16 AEST</title>
+<title>webdiskstat - Generated 2026-04-26 20:49:24 AEST</title>
 <script>
 try {
   document.documentElement.dataset.theme = localStorage.getItem("webdiskstat-theme") === "light" ? "light" : "dark";
@@ -1035,7 +1035,7 @@ html[data-theme="light"] .footer {
     </section>
   </main>
   <footer class="footer">
-    <time class="generated" datetime="2026-04-26T17:45:16+10:00">Generated 2026-04-26 17:45:16 AEST</time>
+    <time class="generated" datetime="2026-04-26T20:49:24+10:00">Generated 2026-04-26 20:49:24 AEST</time>
   </footer>
 </div>
 <section id="helpPage" class="help-page" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
@@ -1065,7 +1065,7 @@ html[data-theme="light"] .footer {
           <h3>Treemap</h3>
           <ul>
             <li>Each rectangle is a file or directory in the current directory.</li>
-            <li>Larger rectangles use more disk space.</li>
+            <li>Rectangles use a logarithmic visual scale so smaller entries remain visible. Sizes shown in labels, details, and tooltips are actual disk usage.</li>
             <li>Directory tiles use different shaded colors; files are colored by extension.</li>
             <li>Hover a tile for path and size. Double-click a directory tile to enter it.</li>
           </ul>
@@ -1153,6 +1153,7 @@ const palette = [
   "#0e7490", "#9333ea", "#ca8a04", "#15803d", "#db2777", "#4338ca"
 ];
 const TREEMAP_MAX_ITEMS = 1500;
+const TREEMAP_MIN_WEIGHT = 1;
 const THEME_STORAGE_KEY = "webdiskstat-theme";
 const HOME_TREEMAP_STORAGE_KEY = "webdiskstat-home-treemap-size";
 const HOME_MIN_TREEMAP_SIZE = 180;
@@ -1606,14 +1607,27 @@ function treemapItems(node) {
   return visible;
 }
 
+function treemapWeightFor(item) {
+  return Math.max(TREEMAP_MIN_WEIGHT, Math.log2((item.size || 0) + 1));
+}
+
 function layoutTreemap(items, x, y, w, h) {
-  const total = items.reduce((sum, item) => sum + item.size, 0);
-  if (!total || !items.length || w <= 0 || h <= 0) return [];
+  const weightedItems = items
+    .map(item => ({ node: item, weight: treemapWeightFor(item) }))
+    .filter(item => item.weight > 0)
+    .sort((a, b) => b.weight - a.weight || b.node.size - a.node.size);
+  const totalWeight = weightedItems.reduce((sum, item) => sum + item.weight, 0);
+  if (!totalWeight || !weightedItems.length || w <= 0 || h <= 0) return [];
+
+  const totalArea = w * h;
+  const entries = weightedItems.map(item => ({
+    node: item.node,
+    area: item.weight / totalWeight * totalArea
+  }));
 
   const rects = [];
   let row = [];
-  let rowSize = 0;
-  let remaining = items.slice();
+  let remaining = entries.slice();
   let offsetX = x;
   let offsetY = y;
   let width = w;
@@ -1622,58 +1636,56 @@ function layoutTreemap(items, x, y, w, h) {
   while (remaining.length) {
     const item = remaining[0];
     const nextRow = row.concat(item);
-    const nextSize = rowSize + item.size;
     const side = Math.min(width, height);
-    if (!row.length || worst(nextRow, nextSize, side) <= worst(row, rowSize, side)) {
+    if (!row.length || worst(nextRow, side) <= worst(row, side)) {
       row = nextRow;
-      rowSize = nextSize;
       remaining.shift();
     } else {
-      placeRow(row, rowSize);
+      placeRow(row);
       row = [];
-      rowSize = 0;
     }
   }
-  if (row.length) placeRow(row, rowSize);
+  if (row.length) placeRow(row);
   return rects;
 
-  function worst(rowItems, size, side) {
-    if (!size || !side || !rowItems.length) return Infinity;
+  function rowArea(rowItems) {
+    return rowItems.reduce((sum, item) => sum + item.area, 0);
+  }
+
+  function worst(rowItems, side) {
+    const area = rowArea(rowItems);
+    if (!area || !side || !rowItems.length) return Infinity;
     let max = 0;
     let min = Infinity;
     rowItems.forEach(item => {
-      const area = item.size / total * w * h;
-      if (area > max) max = area;
-      if (area < min) min = area;
+      if (item.area > max) max = item.area;
+      if (item.area < min) min = item.area;
     });
     if (!min || !Number.isFinite(min)) return Infinity;
     const side2 = side * side;
-    const rowArea = sizeArea(size);
-    return Math.max(side2 * max / (rowArea * rowArea), rowArea * rowArea / (side2 * min));
+    return Math.max(side2 * max / (area * area), area * area / (side2 * min));
   }
 
-  function sizeArea(size) {
-    return size / total * w * h;
-  }
-
-  function placeRow(rowItems, size) {
-    const area = sizeArea(size);
+  function placeRow(rowItems) {
+    const area = rowArea(rowItems);
     if (width >= height) {
       const rowHeight = area / width;
+      if (rowHeight <= 0) return;
       let cx = offsetX;
       rowItems.forEach(item => {
-        const itemWidth = sizeArea(item.size) / rowHeight;
-        rects.push({ node: item, x: cx, y: offsetY, w: itemWidth, h: rowHeight });
+        const itemWidth = item.area / rowHeight;
+        rects.push({ node: item.node, x: cx, y: offsetY, w: itemWidth, h: rowHeight });
         cx += itemWidth;
       });
       offsetY += rowHeight;
       height -= rowHeight;
     } else {
       const rowWidth = area / height;
+      if (rowWidth <= 0) return;
       let cy = offsetY;
       rowItems.forEach(item => {
-        const itemHeight = sizeArea(item.size) / rowWidth;
-        rects.push({ node: item, x: offsetX, y: cy, w: rowWidth, h: itemHeight });
+        const itemHeight = item.area / rowWidth;
+        rects.push({ node: item.node, x: offsetX, y: cy, w: rowWidth, h: itemHeight });
         cy += itemHeight;
       });
       offsetX += rowWidth;

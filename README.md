@@ -80,6 +80,7 @@ Running the script without piped input or an input file prints the usage instruc
 - Columns are sortable by name, item count, and size.
 - File and item counts use comma grouping.
 - The treemap shows the current directory, including directories and files directly inside that directory.
+- Treemap tile area uses a logarithmic visual scale to keep smaller entries visible while details still show actual sizes.
 - Directory tiles use distinct shaded colors. File tiles are colored by extension.
 - The home view shows a smaller treemap and a framed top 10 biggest files list.
 - The home view divider can be dragged to resize the treemap and top 10 list.
