@@ -1197,6 +1197,7 @@ kbd {{
   gap: 8px;
   min-width: 0;
   text-transform: none;
+  flex-wrap: wrap;
 }}
 .top-file-limit {{
   width: 72px;
@@ -1207,6 +1208,12 @@ kbd {{
   color: var(--ink);
   font-size: 12px;
   font-weight: 650;
+}}
+.top-file-count {{
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
 }}
 .top-file-pager {{
   display: inline-flex;
@@ -1650,6 +1657,7 @@ html[data-theme="light"] .footer {{
               <option value="40">40</option>
               <option value="50">50</option>
             </select>
+            <span id="topFilesCount" class="top-file-count">0 files</span>
             <div class="top-file-pager" aria-label="Top files pages">
               <button id="topFilesPrev" class="pager-btn" type="button" title="Previous page" aria-label="Previous top files page">
                 <svg class="pager-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
@@ -1844,6 +1852,7 @@ const el = {{
   topFiles: document.getElementById("topFiles"),
   topFilesTitle: document.getElementById("topFilesTitle"),
   topFilesLimit: document.getElementById("topFilesLimit"),
+  topFilesCount: document.getElementById("topFilesCount"),
   topFilesPrev: document.getElementById("topFilesPrev"),
   topFilesNext: document.getElementById("topFilesNext"),
   topFilesPage: document.getElementById("topFilesPage"),
@@ -2686,7 +2695,10 @@ function renderHomePanel() {{
   state.topFilesLimit = normalizeTopFilesLimit(state.topFilesLimit);
   el.topFilesLimit.value = String(state.topFilesLimit);
   el.topFilesTitle.textContent = "List of biggest file";
-  el.topFiles.setAttribute("aria-label", `List of biggest file, showing ${{state.topFilesLimit}} entries`);
+  const fileCountLabel = `${{formatCount(files.length)}} file${{files.length === 1 ? "" : "s"}}`;
+  el.topFilesCount.textContent = fileCountLabel;
+  el.topFilesCount.title = `Total files in scan: ${{fileCountLabel}}`;
+  el.topFiles.setAttribute("aria-label", `List of biggest file, showing ${{state.topFilesLimit}} entries from ${{fileCountLabel}}`);
 
   el.topFilesBody.textContent = "";
   el.topFilesBody.scrollTop = 0;
