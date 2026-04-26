@@ -1568,7 +1568,7 @@ html[data-theme="light"] .footer {{
           <ul>
             <li>Click a row to select it and update the details panel.</li>
             <li>Double-click a directory to enter it.</li>
-            <li>Use the column headers to sort by name, items, or size.</li>
+            <li>Use the column headers to sort by name, items, files, size, or modified date.</li>
             <li>Modified time appears when it was included in the scan data.</li>
           </ul>
         </section>
@@ -1787,6 +1787,11 @@ function formatListModifiedTime(value) {{
   }}).format(date);
 }}
 
+function modifiedSortValue(node) {{
+  const date = dateFromModifiedValue(node.mtime);
+  return date ? date.getTime() : null;
+}}
+
 function pct(part, total) {{
   if (!total) return "0%";
   const value = part / total * 100;
@@ -1971,11 +1976,27 @@ function sortedChildren(node) {{
       result = a.name.localeCompare(b.name, undefined, {{ numeric: true, sensitivity: "base" }});
     }} else if (state.sortKey === "items") {{
       result = (a.items || 0) - (b.items || 0);
+    }} else if (state.sortKey === "files") {{
+      result = (a.files || 0) - (b.files || 0);
+    }} else if (state.sortKey === "modified") {{
+      const aTime = modifiedSortValue(a);
+      const bTime = modifiedSortValue(b);
+      if (aTime === null && bTime === null) {{
+        result = 0;
+      }} else if (aTime === null) {{
+        return 1;
+      }} else if (bTime === null) {{
+        return -1;
+      }} else {{
+        result = aTime - bTime;
+      }}
     }} else {{
       result = (a.size || 0) - (b.size || 0);
     }}
-    if (result === 0) result = b.size - a.size;
-    return result * direction;
+    if (result !== 0) return result * direction;
+    result = (b.size || 0) - (a.size || 0);
+    if (result !== 0) return result;
+    return a.name.localeCompare(b.name, undefined, {{ numeric: true, sensitivity: "base" }});
   }});
   return children;
 }}
@@ -1996,10 +2017,10 @@ function setSort(key) {{
   setSelected(state.selected);
 }}
 
-function makeHeaderButton(label, key) {{
+function makeHeaderButton(label, key, numeric = key !== "name" && key !== "modified") {{
   const button = document.createElement("button");
   button.className = "tree-sort";
-  if (key !== "name") button.classList.add("numeric");
+  if (numeric) button.classList.add("numeric");
   if (state.sortKey === key) button.classList.add("sort-active");
   button.type = "button";
   button.textContent = label + sortIndicator(key);
@@ -2021,9 +2042,9 @@ function renderTreeHeader() {{
   header.append(
     makeHeaderButton("Name", "name"),
     makeHeaderButton("Items", "items"),
-    makeHeaderLabel("Files", true),
+    makeHeaderButton("Files", "files"),
     makeHeaderButton("Size", "size"),
-    makeHeaderLabel("Modified"),
+    makeHeaderButton("Modified", "modified", false),
     makeHeaderLabel("%", true)
   );
   el.tree.appendChild(header);
