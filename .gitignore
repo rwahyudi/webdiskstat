@@ -1,3 +1,5 @@
 __pycache__/
 *.py[cod]
 *.html
+!example/
+!example/report.html

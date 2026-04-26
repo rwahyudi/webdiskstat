@@ -57,6 +57,10 @@ Read compressed JSON:
 zcat report.json.gz | ./webdiskstat.py -o diskstats.html
 ```
 
+## Example
+
+Open the included sample report: [example/report.html](example/report.html).
+
 ## Options
 
 ```text
@@ -76,6 +80,7 @@ Running the script without piped input or an input file prints the usage instruc
 - The treemap shows the current directory, including directories and files directly inside that directory.
 - Directory tiles use distinct shaded colors. File tiles are colored by extension.
 - The home view shows a smaller treemap and a framed top 10 biggest files list.
+- The home view divider can be dragged to resize the treemap and top 10 list.
 - Double-click a top 10 file to jump to the directory containing that file.
 - Details show size, percentage, type, extension, item count, file count, and modified time when `gdu` provides it.
 - Generated date and time are shown in the browser title and footer.

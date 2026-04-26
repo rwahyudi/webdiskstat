@@ -1,0 +1,125 @@
+{
+  "name": "sample-disk",
+  "path": "/example",
+  "directory": true,
+  "modified": "2026-04-26T16:15:00+10:00",
+  "children": [
+    {
+      "name": "Media",
+      "directory": true,
+      "modified": "2026-04-22T09:10:00+10:00",
+      "children": [
+        {
+          "name": "demo-video.mov",
+          "size": 2684354560,
+          "modified": "2026-04-21T20:40:00+10:00"
+        },
+        {
+          "name": "podcast-edit.wav",
+          "size": 1073741824,
+          "modified": "2026-04-18T11:05:00+10:00"
+        },
+        {
+          "name": "cover-art.psd",
+          "size": 402653184,
+          "modified": "2026-04-20T15:45:00+10:00"
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "directory": true,
+      "modified": "2026-04-25T18:30:00+10:00",
+      "children": [
+        {
+          "name": "webdiskstat",
+          "directory": true,
+          "modified": "2026-04-25T18:30:00+10:00",
+          "children": [
+            {
+              "name": "dist-report.html",
+              "size": 734003200,
+              "modified": "2026-04-25T18:22:00+10:00"
+            },
+            {
+              "name": "scan-cache.json.gz",
+              "size": 209715200,
+              "modified": "2026-04-24T17:55:00+10:00"
+            },
+            {
+              "name": "webdiskstat.py",
+              "size": 131072,
+              "modified": "2026-04-23T13:20:00+10:00"
+            }
+          ]
+        },
+        {
+          "name": "photos-site",
+          "directory": true,
+          "modified": "2026-04-19T10:25:00+10:00",
+          "children": [
+            {
+              "name": "assets.zip",
+              "size": 629145600,
+              "modified": "2026-04-17T08:35:00+10:00"
+            },
+            {
+              "name": "index.html",
+              "size": 524288,
+              "modified": "2026-04-19T10:20:00+10:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Downloads",
+      "directory": true,
+      "modified": "2026-04-24T07:50:00+10:00",
+      "children": [
+        {
+          "name": "linux-installer.iso",
+          "size": 1879048192,
+          "modified": "2026-04-23T22:10:00+10:00"
+        },
+        {
+          "name": "browser-export.zip",
+          "size": 314572800,
+          "modified": "2026-04-21T06:30:00+10:00"
+        },
+        {
+          "name": "receipt.pdf",
+          "size": 1048576,
+          "modified": "2026-04-20T14:12:00+10:00"
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "directory": true,
+      "modified": "2026-04-20T12:00:00+10:00",
+      "children": [
+        {
+          "name": "budget.xlsx",
+          "size": 8388608,
+          "modified": "2026-04-16T09:00:00+10:00"
+        },
+        {
+          "name": "notes.md",
+          "size": 196608,
+          "modified": "2026-04-14T19:18:00+10:00"
+        }
+      ]
+    },
+    {
+      "name": "archive.tar.gz",
+      "size": 1342177280,
+      "modified": "2026-04-13T21:44:00+10:00"
+    },
+    {
+      "name": "system.log",
+      "size": 67108864,
+      "modified": "2026-04-26T15:58:00+10:00"
+    }
+  ]
+}
