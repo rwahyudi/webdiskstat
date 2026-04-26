@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>webdiskstat - Generated 2026-04-26 21:34:26 AEST</title>
+<title>webdiskstat - Generated 2026-04-26 21:37:01 AEST</title>
 <script>
 try {
   document.documentElement.dataset.theme = localStorage.getItem("webdiskstat-theme") === "light" ? "light" : "dark";
@@ -698,12 +698,6 @@ kbd {
   font-size: 12px;
   font-weight: 650;
 }
-.top-file-count {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 650;
-  white-space: nowrap;
-}
 .top-file-pager {
   display: inline-flex;
   align-items: center;
@@ -959,6 +953,20 @@ kbd {
 html[data-theme="light"] body {
   background: linear-gradient(180deg, #f8fafc 0%, var(--bg) 48%, #e8edf3 100%);
 }
+html[data-theme="light"] .theme-switch {
+  border-color: #d7e1ec;
+  background: #f1f5f9;
+  color: #64748b;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+}
+html[data-theme="light"] .theme-input:checked + .theme-switch .theme-knob {
+  background: #60a5fa;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+}
+html[data-theme="light"] .theme-toggle:hover .theme-switch {
+  border-color: #cbd5e1;
+  background: #eaf2fb;
+}
 html[data-theme="light"] kbd {
   border-color: #cbd5e1;
   border-bottom-color: #94a3b8;
@@ -1146,7 +1154,6 @@ html[data-theme="light"] .footer {
               <option value="40">40</option>
               <option value="50">50</option>
             </select>
-            <span id="topFilesCount" class="top-file-count">0 files</span>
             <div class="top-file-pager" aria-label="Top files pages">
               <button id="topFilesPrev" class="pager-btn" type="button" title="Previous page" aria-label="Previous top files page">
                 <svg class="pager-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
@@ -1171,7 +1178,7 @@ html[data-theme="light"] .footer {
     </section>
   </main>
   <footer class="footer">
-    <time class="generated" datetime="2026-04-26T21:34:26+10:00">Generated 2026-04-26 21:34:26 AEST</time>
+    <time class="generated" datetime="2026-04-26T21:37:01+10:00">Generated 2026-04-26 21:37:01 AEST</time>
   </footer>
 </div>
 <section id="helpPage" class="help-page" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
@@ -1341,7 +1348,6 @@ const el = {
   topFiles: document.getElementById("topFiles"),
   topFilesTitle: document.getElementById("topFilesTitle"),
   topFilesLimit: document.getElementById("topFilesLimit"),
-  topFilesCount: document.getElementById("topFilesCount"),
   topFilesPrev: document.getElementById("topFilesPrev"),
   topFilesNext: document.getElementById("topFilesNext"),
   topFilesPage: document.getElementById("topFilesPage"),
@@ -2184,10 +2190,7 @@ function renderHomePanel() {
   state.topFilesLimit = normalizeTopFilesLimit(state.topFilesLimit);
   el.topFilesLimit.value = String(state.topFilesLimit);
   el.topFilesTitle.textContent = "List of biggest file";
-  const fileCountLabel = `${formatCount(files.length)} file${files.length === 1 ? "" : "s"}`;
-  el.topFilesCount.textContent = fileCountLabel;
-  el.topFilesCount.title = `Total files in scan: ${fileCountLabel}`;
-  el.topFiles.setAttribute("aria-label", `List of biggest file, showing ${state.topFilesLimit} entries from ${fileCountLabel}`);
+  el.topFiles.setAttribute("aria-label", `List of biggest file, showing ${state.topFilesLimit} entries`);
 
   el.topFilesBody.textContent = "";
   el.topFilesBody.scrollTop = 0;

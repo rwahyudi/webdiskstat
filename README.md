@@ -84,7 +84,6 @@ Running the script without piped input or an input file prints the usage instruc
 - The divider between the directory list and right panel can be dragged to resize the right panel.
 - The home view shows a smaller treemap and a framed biggest-files list.
 - The biggest-files list can show 10 to 50 entries and paginates 10 rows at a time.
-- The count next to the biggest-files selector shows the total number of files in the scan.
 - The home view divider can be dragged to resize the treemap and biggest-files list.
 - Double-click a listed file to jump to the directory containing that file.
 - Details show size, percentage, type, extension, item count, file count, and modified time when `gdu` provides it.
