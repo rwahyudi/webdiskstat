@@ -11,6 +11,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime
 import gzip
 import html
@@ -502,14 +503,55 @@ def script_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
+def compressed_script_json(value: Any) -> str:
+    raw = script_json(value).encode("utf-8")
+    compressed = gzip.compress(raw, compresslevel=9, mtime=0)
+    return json.dumps(base64.b64encode(compressed).decode("ascii"), separators=(",", ":"))
+
+
+def minify_css(css: str) -> str:
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    css = re.sub(r"\s+", " ", css)
+    css = re.sub(r"\s*([{}:;,>])\s*", r"\1", css)
+    css = re.sub(r";}", "}", css)
+    return css.strip()
+
+
+def optimize_report_html(report: str) -> str:
+    blocks: list[str] = []
+
+    def protect(pattern: str, text: str, transform=lambda value: value) -> str:
+        def replace(match: re.Match[str]) -> str:
+            token = f"@@WEBDISKSTAT_BLOCK_{len(blocks)}@@"
+            blocks.append(transform(match.group(0)))
+            return token
+
+        return re.sub(pattern, replace, text, flags=re.S | re.I)
+
+    def optimize_style(block: str) -> str:
+        match = re.fullmatch(r"(<style>)(.*?)(</style>)", block, flags=re.S | re.I)
+        if not match:
+            return block
+        return match.group(1) + minify_css(match.group(2)) + match.group(3)
+
+    report = protect(r"<script>.*?</script>", report)
+    report = protect(r"<style>.*?</style>", report, optimize_style)
+    report = re.sub(r">\s+<", "><", report)
+    report = "\n".join(line.strip() for line in report.splitlines() if line.strip())
+
+    for index, block in enumerate(blocks):
+        report = report.replace(f"@@WEBDISKSTAT_BLOCK_{index}@@", block)
+    return report + "\n"
+
+
 def render_report(root: dict[str, Any]) -> str:
-    data = script_json(serialize_report_data(root))
+    data = compressed_script_json(serialize_report_data(root))
     generated_at = datetime.now().astimezone()
     generated_iso = generated_at.isoformat(timespec="seconds")
     generated_display = generated_at.strftime("%Y-%m-%d %H:%M:%S %Z")
     escaped_title = html.escape(f"{APP_TITLE} - Generated {generated_display}")
 
-    return f"""<!doctype html>
+    report = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1842,8 +1884,8 @@ html[data-theme="light"] .footer {{
 </section>
 <div id="tooltip" class="tooltip"></div>
 <script>
-const REPORT_DATA = {data};
-const DATA = unpackReportData(REPORT_DATA);
+const REPORT_DATA_GZIP = {data};
+let DATA = null;
 
 function unpackReportData(payload) {{
   const strings = payload[0] || [];
@@ -1884,6 +1926,18 @@ function unpackReportData(payload) {{
   return decodeNode(packedRoot, "");
 }}
 
+async function loadCompressedReportData(payload) {{
+  if (typeof DecompressionStream !== "function") {{
+    throw new Error("This browser cannot decompress embedded report data. Use a current Chrome, Edge, Firefox, or Safari release.");
+  }}
+  const binary = atob(payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const text = await new Response(stream).text();
+  return unpackReportData(JSON.parse(text));
+}}
+
 const palette = [
   "#2563eb", "#0f766e", "#c2410c", "#7c3aed", "#be123c", "#047857",
   "#b45309", "#0369a1", "#a21caf", "#4d7c0f", "#b91c1c", "#1d4ed8",
@@ -1905,8 +1959,8 @@ const HOME_RESIZER_SIZE = 12;
 const HOME_RESIZE_STEP = 32;
 
 const state = {{
-  current: DATA,
-  selected: DATA,
+  current: null,
+  selected: null,
   sortKey: "size",
   sortDir: "desc",
   topFilesLimit: 10,
@@ -1917,7 +1971,6 @@ const byId = new Map();
 const byPath = new Map();
 const parent = new Map();
 let nextNodeId = 0;
-walk(DATA, null);
 
 const el = {{
   crumbs: document.getElementById("crumbs"),
@@ -2111,12 +2164,14 @@ function syncUrlToCurrent(node, replace = false) {{
 }}
 
 function applyLocationHash() {{
+  if (!DATA) return;
   const node = nodeFromLocationHash();
   if (!node || node === state.current) return;
   setCurrent(node, false);
 }}
 
 function setCurrent(node, updateUrl = true) {{
+  if (!node) return;
   state.current = node;
   state.selected = node;
   if (updateUrl) syncUrlToCurrent(node);
@@ -2124,6 +2179,7 @@ function setCurrent(node, updateUrl = true) {{
 }}
 
 function goParent() {{
+  if (!state.current) return;
   const parentNode = parent.get(state.current.id);
   if (parentNode) setCurrent(parentNode);
 }}
@@ -2974,6 +3030,58 @@ function showRenderError(error) {{
   el.detailStats.textContent = "";
 }}
 
+function prepareReportData(root) {{
+  byId.clear();
+  byPath.clear();
+  parent.clear();
+  nextNodeId = 0;
+  DATA = root;
+  walk(DATA, null);
+  state.current = DATA;
+  state.selected = DATA;
+}}
+
+function showLoadError(error) {{
+  console.error(error);
+  el.tree.textContent = "";
+  const row = document.createElement("div");
+  row.className = "row";
+  row.textContent = "Unable to load compressed report data";
+  el.tree.appendChild(row);
+
+  el.treemap.textContent = "";
+  const empty = document.createElement("div");
+  empty.className = "empty";
+  empty.textContent = "Unable to load report data";
+  el.treemap.appendChild(empty);
+
+  el.content.classList.remove("home");
+  el.homeResizer.hidden = true;
+  el.topFiles.hidden = true;
+  el.detailName.textContent = "Unable to load report";
+  el.detailPath.textContent = error && error.message ? error.message : String(error);
+  el.detailStats.textContent = "";
+}}
+
+async function initReport() {{
+  setTheme(document.documentElement.dataset.theme, false);
+  syncMainPaneSize();
+
+  try {{
+    const root = await loadCompressedReportData(REPORT_DATA_GZIP);
+    prepareReportData(root);
+    const initialNode = nodeFromLocationHash();
+    if (initialNode) {{
+      state.current = initialNode;
+      state.selected = initialNode;
+      syncUrlToCurrent(initialNode, true);
+    }}
+    renderSafely();
+  }} catch (error) {{
+    showLoadError(error);
+  }}
+}}
+
 el.themeToggle.addEventListener("change", event => {{
   setTheme(event.target.checked ? "light" : "dark");
 }});
@@ -3003,6 +3111,7 @@ el.sidebar.addEventListener("wheel", event => {{
 }}, {{ passive: false }});
 window.addEventListener("resize", () => {{
   syncMainPaneSize();
+  if (!DATA) return;
   if (state.current === DATA) syncHomePaneSize();
   renderTreemap();
 }});
@@ -3026,6 +3135,7 @@ function scrollTreeSelectionIntoView(node) {{
 }}
 
 function setListSelectionByIndex(index) {{
+  if (!state.current) return;
   const children = sortedChildren(state.current);
   if (!children.length) return;
   const clamped = Math.max(0, Math.min(children.length - 1, index));
@@ -3035,6 +3145,7 @@ function setListSelectionByIndex(index) {{
 }}
 
 function moveListSelection(delta) {{
+  if (!state.current) return;
   const children = sortedChildren(state.current);
   if (!children.length) return;
   let index = children.findIndex(child => state.selected && child.id === state.selected.id);
@@ -3090,6 +3201,7 @@ document.addEventListener("keydown", event => {{
   }}
   if (!el.helpPage.hidden) return;
   if (isTextEditingTarget(event.target)) return;
+  if (!DATA) return;
   if (event.key === "Backspace" || event.key === "ArrowLeft") {{
     event.preventDefault();
     goParent();
@@ -3098,20 +3210,12 @@ document.addEventListener("keydown", event => {{
   handleListKey(event);
 }});
 
-const initialNode = nodeFromLocationHash();
-if (initialNode) {{
-  state.current = initialNode;
-  state.selected = initialNode;
-  syncUrlToCurrent(initialNode, true);
-}}
-
-setTheme(document.documentElement.dataset.theme, false);
-syncMainPaneSize();
-renderSafely();
+initReport();
 </script>
 </body>
 </html>
 """
+    return optimize_report_html(report)
 
 
 if __name__ == "__main__":

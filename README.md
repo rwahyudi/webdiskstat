@@ -103,6 +103,7 @@ Running the script without piped input or an input file prints the usage instruc
 
 The output is a static HTML file. After generation, it does not need Python or `gdu` to view the report.
 
-The scan data is embedded in a compact string-table format and expanded by the browser when the report loads.
+The scan data is embedded as a gzip-compressed compact string-table payload and expanded by the browser when the report loads.
+Viewing generated reports requires a browser with the standard `DecompressionStream` API.
 
 This script was vibe-coded.
