@@ -59,7 +59,9 @@ zcat report.json.gz | ./webdiskstat.py -o diskstats.html
 
 ## Example
 
-Open the included sample report: [example/report.html](example/report.html).
+Open the included sample report in the repository: [example/report.html](example/report.html).
+
+Preview it in a browser through HTMLPreview: [webdiskstat example report](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html).
 
 ## Options
 
