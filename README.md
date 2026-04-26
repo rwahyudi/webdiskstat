@@ -68,3 +68,5 @@ Running the script without piped input or an input file prints the usage instruc
 The output is a static HTML file. After generation, it does not need Python or `gdu` to view the report.
 
 The scan data is embedded in a compact string-table format and expanded by the browser when the report loads.
+
+This script was vibe-coded.
