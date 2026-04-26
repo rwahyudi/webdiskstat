@@ -584,10 +584,17 @@ body.resizing-home-pane {{
 body.resizing-home-pane * {{
   cursor: row-resize !important;
 }}
+body.resizing-main-pane {{
+  cursor: col-resize;
+  user-select: none;
+}}
+body.resizing-main-pane * {{
+  cursor: col-resize !important;
+}}
 button, input, select {{
   font: inherit;
 }}
-button:focus-visible, .row:focus-visible, .tile:focus-visible, .top-file-row:focus-visible, .home-resizer:focus-visible {{
+button:focus-visible, .row:focus-visible, .tile:focus-visible, .top-file-row:focus-visible, .main-resizer:focus-visible, .home-resizer:focus-visible {{
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }}
@@ -773,9 +780,10 @@ kbd {{
   padding: 0 28px 0 10px;
 }}
 .main {{
+  --sidebar-size: 38vw;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(360px, 38vw) 1fr;
+  grid-template-columns: minmax(280px, var(--sidebar-size)) 10px minmax(360px, 1fr);
   background: var(--panel-3);
 }}
 .sidebar {{
@@ -785,6 +793,32 @@ kbd {{
   background: linear-gradient(180deg, #20252c 0%, #1c2128 100%);
   display: grid;
   grid-template-rows: auto 1fr;
+}}
+.main-resizer {{
+  min-width: 10px;
+  min-height: 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--line) 50%, transparent 100%);
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}}
+.main-resizer::before {{
+  content: "";
+  width: 4px;
+  height: 72px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 76%, var(--ink) 24%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.08);
+  transition: background 120ms ease, height 120ms ease;
+}}
+.main-resizer:hover::before,
+.main-resizer.dragging::before,
+.main-resizer:focus-visible::before {{
+  height: 96px;
+  background: var(--accent);
 }}
 .summary {{
   display: grid;
@@ -1465,6 +1499,9 @@ html[data-theme="light"] .footer {{
     grid-template-columns: 1fr;
     grid-template-rows: minmax(260px, 38vh) minmax(360px, 62vh);
   }}
+  .main-resizer {{
+    display: none;
+  }}
   .sidebar {{
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -1515,7 +1552,7 @@ html[data-theme="light"] .footer {{
       </button>
     </div>
   </header>
-  <main class="main">
+  <main id="main" class="main">
     <aside id="sidebar" class="sidebar">
       <section class="summary">
         <div class="metric"><span class="label">Selected</span><span id="selectedSize" class="value"></span></div>
@@ -1524,6 +1561,7 @@ html[data-theme="light"] .footer {{
       </section>
       <section id="tree" class="tree" aria-label="Directory listing"></section>
     </aside>
+    <div id="mainResizer" class="main-resizer" role="separator" aria-orientation="vertical" aria-label="Resize right panel" tabindex="0"></div>
     <section id="content" class="content">
       <div id="treemapFrame" class="treemap-frame">
         <section id="treemap" class="treemap" aria-label="Treemap"></section>
@@ -1594,6 +1632,7 @@ html[data-theme="light"] .footer {{
           <h3>Navigation</h3>
           <ul>
             <li>Use the breadcrumb path at the top to jump to a parent directory.</li>
+            <li>Drag the divider between the directory list and right panel to resize the right panel.</li>
             <li>Use the up arrow button to go up one directory.</li>
             <li>Use the home button to return to the scan root.</li>
             <li>Use the theme switch to toggle between dark and light themes.</li>
@@ -1665,6 +1704,11 @@ const palette = [
 ];
 const TREEMAP_MAX_ITEMS = 1500;
 const THEME_STORAGE_KEY = "webdiskstat-theme";
+const MAIN_PANE_STORAGE_KEY = "webdiskstat-sidebar-size";
+const MAIN_MIN_SIDEBAR_SIZE = 280;
+const MAIN_MIN_CONTENT_SIZE = 360;
+const MAIN_RESIZER_SIZE = 10;
+const MAIN_RESIZE_STEP = 32;
 const HOME_TREEMAP_STORAGE_KEY = "webdiskstat-home-treemap-size";
 const HOME_MIN_TREEMAP_SIZE = 180;
 const HOME_MIN_TOP_FILES_SIZE = 260;
@@ -1695,7 +1739,9 @@ const el = {{
   selectedSize: document.getElementById("selectedSize"),
   selectedItems: document.getElementById("selectedItems"),
   selectedFiles: document.getElementById("selectedFiles"),
+  main: document.getElementById("main"),
   sidebar: document.getElementById("sidebar"),
+  mainResizer: document.getElementById("mainResizer"),
   tree: document.getElementById("tree"),
   content: document.getElementById("content"),
   treemapFrame: document.getElementById("treemapFrame"),
@@ -2269,6 +2315,127 @@ function collectFiles(node, files) {{
   (node.children || []).forEach(child => collectFiles(child, files));
 }}
 
+function isMainResizerVisible() {{
+  return getComputedStyle(el.mainResizer).display !== "none";
+}}
+
+function readStoredMainSidebarSize() {{
+  try {{
+    const value = Number(localStorage.getItem(MAIN_PANE_STORAGE_KEY));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }} catch (error) {{
+    return 0;
+  }}
+}}
+
+function storeMainSidebarSize(size) {{
+  try {{
+    localStorage.setItem(MAIN_PANE_STORAGE_KEY, String(Math.round(size)));
+  }} catch (error) {{
+    // The report still works when localStorage is unavailable.
+  }}
+}}
+
+function mainSidebarMaxSize() {{
+  const width = el.main.getBoundingClientRect().width;
+  return Math.max(MAIN_MIN_SIDEBAR_SIZE, width - MAIN_MIN_CONTENT_SIZE - MAIN_RESIZER_SIZE);
+}}
+
+function clampMainSidebarSize(size) {{
+  return Math.max(MAIN_MIN_SIDEBAR_SIZE, Math.min(mainSidebarMaxSize(), size || MAIN_MIN_SIDEBAR_SIZE));
+}}
+
+function currentMainSidebarSize() {{
+  const inlineSize = parseFloat(el.main.style.getPropertyValue("--sidebar-size"));
+  if (Number.isFinite(inlineSize)) return inlineSize;
+
+  const sidebarRect = el.sidebar.getBoundingClientRect();
+  return sidebarRect.width || MAIN_MIN_SIDEBAR_SIZE;
+}}
+
+function updateMainResizerAttributes(size = currentMainSidebarSize()) {{
+  const clamped = clampMainSidebarSize(size);
+  el.mainResizer.setAttribute("aria-valuemin", String(MAIN_MIN_SIDEBAR_SIZE));
+  el.mainResizer.setAttribute("aria-valuemax", String(Math.round(mainSidebarMaxSize())));
+  el.mainResizer.setAttribute("aria-valuenow", String(Math.round(clamped)));
+}}
+
+function setMainSidebarSize(size, persist = true, rerender = true) {{
+  if (!isMainResizerVisible()) return;
+  const clamped = clampMainSidebarSize(size);
+  el.main.style.setProperty("--sidebar-size", `${{Math.round(clamped)}}px`);
+  updateMainResizerAttributes(clamped);
+  if (persist) storeMainSidebarSize(clamped);
+  if (rerender) renderTreemap();
+}}
+
+function syncMainPaneSize() {{
+  if (!isMainResizerVisible()) return;
+  const currentInlineSize = el.main.style.getPropertyValue("--sidebar-size");
+  if (!currentInlineSize) {{
+    const stored = readStoredMainSidebarSize();
+    if (stored) {{
+      setMainSidebarSize(stored, false, false);
+      return;
+    }}
+  }} else {{
+    setMainSidebarSize(currentMainSidebarSize(), false, false);
+    return;
+  }}
+  updateMainResizerAttributes();
+}}
+
+function resizeMainPaneAt(clientX) {{
+  const rect = el.main.getBoundingClientRect();
+  setMainSidebarSize(clientX - rect.left);
+}}
+
+function beginMainResize(event) {{
+  if (event.button !== undefined && event.button !== 0) return;
+  event.preventDefault();
+  hideTooltip();
+  el.mainResizer.classList.add("dragging");
+  document.body.classList.add("resizing-main-pane");
+  resizeMainPaneAt(event.clientX);
+  window.addEventListener("pointermove", handleMainResizeMove);
+  window.addEventListener("pointerup", endMainResize);
+  window.addEventListener("pointercancel", endMainResize);
+}}
+
+function handleMainResizeMove(event) {{
+  event.preventDefault();
+  resizeMainPaneAt(event.clientX);
+}}
+
+function endMainResize() {{
+  window.removeEventListener("pointermove", handleMainResizeMove);
+  window.removeEventListener("pointerup", endMainResize);
+  window.removeEventListener("pointercancel", endMainResize);
+  el.mainResizer.classList.remove("dragging");
+  document.body.classList.remove("resizing-main-pane");
+}}
+
+function handleMainResizerKey(event) {{
+  let handled = true;
+  if (event.key === "ArrowLeft") {{
+    setMainSidebarSize(currentMainSidebarSize() - MAIN_RESIZE_STEP);
+  }} else if (event.key === "ArrowRight") {{
+    setMainSidebarSize(currentMainSidebarSize() + MAIN_RESIZE_STEP);
+  }} else if (event.key === "PageUp") {{
+    setMainSidebarSize(currentMainSidebarSize() - MAIN_RESIZE_STEP * 3);
+  }} else if (event.key === "PageDown") {{
+    setMainSidebarSize(currentMainSidebarSize() + MAIN_RESIZE_STEP * 3);
+  }} else if (event.key === "Home") {{
+    setMainSidebarSize(MAIN_MIN_SIDEBAR_SIZE);
+  }} else if (event.key === "End") {{
+    setMainSidebarSize(mainSidebarMaxSize());
+  }} else {{
+    handled = false;
+  }}
+
+  if (handled) event.preventDefault();
+}}
+
 function readStoredHomeTreemapSize() {{
   try {{
     const value = Number(localStorage.getItem(HOME_TREEMAP_STORAGE_KEY));
@@ -2565,6 +2732,8 @@ el.helpCloseButton.addEventListener("click", () => closeHelpPage());
 el.helpPage.addEventListener("click", event => {{
   if (event.target === el.helpPage) closeHelpPage();
 }});
+el.mainResizer.addEventListener("pointerdown", beginMainResize);
+el.mainResizer.addEventListener("keydown", handleMainResizerKey);
 el.homeResizer.addEventListener("pointerdown", beginHomeResize);
 el.homeResizer.addEventListener("keydown", handleHomeResizerKey);
 el.sidebar.addEventListener("wheel", event => {{
@@ -2575,6 +2744,7 @@ el.sidebar.addEventListener("wheel", event => {{
   event.preventDefault();
 }}, {{ passive: false }});
 window.addEventListener("resize", () => {{
+  syncMainPaneSize();
   if (state.current === DATA) syncHomePaneSize();
   renderTreemap();
 }});
@@ -2678,6 +2848,7 @@ if (initialNode) {{
 }}
 
 setTheme(document.documentElement.dataset.theme, false);
+syncMainPaneSize();
 renderSafely();
 </script>
 </body>

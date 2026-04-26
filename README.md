@@ -81,6 +81,7 @@ Running the script without piped input or an input file prints the usage instruc
 - File and item counts use comma grouping.
 - The treemap shows the current directory, including directories and files directly inside that directory.
 - Directory tiles use distinct shaded colors. File tiles are colored by extension.
+- The divider between the directory list and right panel can be dragged to resize the right panel.
 - The home view shows a smaller treemap and a framed top 10 biggest files list.
 - The home view divider can be dragged to resize the treemap and top 10 list.
 - Double-click a top 10 file to jump to the directory containing that file.
