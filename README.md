@@ -7,6 +7,33 @@
 - Python 3.10 or newer
 - `gdu`
 
+## Download and Install
+
+Clone the repository:
+
+```sh
+git clone https://github.com/rwahyudi/webdiskstat.git
+cd webdiskstat
+```
+
+Run it from the cloned directory:
+
+```sh
+gdu -o- /path/to/scan | ./webdiskstat.py -o webdiskstat.html
+```
+
+Optional: make it available from your shell path:
+
+```sh
+install -Dm755 webdiskstat.py ~/.local/bin/webdiskstat
+```
+
+Then run:
+
+```sh
+gdu -o- /path/to/scan | webdiskstat -o webdiskstat.html
+```
+
 ## Quick Start
 
 Generate a report directly from `gdu`:
