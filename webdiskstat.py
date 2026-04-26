@@ -695,6 +695,7 @@ kbd {{
   display: inline-flex;
   align-items: center;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }}
 .theme-input {{
   position: absolute;
@@ -704,51 +705,72 @@ kbd {{
   pointer-events: none;
 }}
 .theme-switch {{
-  width: 58px;
-  height: 32px;
+  width: 64px;
+  height: 34px;
   position: relative;
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  padding: 0 4px;
+  border: 1px solid #3a4654;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--control) 62%, transparent);
-  color: color-mix(in srgb, var(--muted) 76%, var(--ink) 24%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
+  background: linear-gradient(180deg, #222933 0%, #171d25 100%);
+  color: #94a3b8;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -1px 0 rgba(0,0,0,0.22),
+    0 1px 2px rgba(0,0,0,0.16);
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }}
 .theme-icon {{
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
+  justify-self: center;
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 2.15;
   stroke-linecap: round;
   stroke-linejoin: round;
-  z-index: 1;
+  opacity: 0.58;
+  transform: scale(0.94);
+  transition: color 160ms ease, opacity 160ms ease, transform 160ms ease;
+  z-index: 2;
 }}
 .theme-knob {{
   position: absolute;
   left: 3px;
   top: 3px;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--muted) 58%, var(--panel) 42%);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
-  transition: transform 160ms ease, background 160ms ease;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(180deg, #334155 0%, #202936 100%);
+  box-shadow:
+    0 2px 5px rgba(0,0,0,0.34),
+    inset 0 1px 0 rgba(255,255,255,0.10);
+  transition: transform 180ms cubic-bezier(.2, .8, .2, 1), background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  z-index: 1;
 }}
 .theme-input:checked + .theme-switch .theme-knob {{
-  transform: translateX(26px);
-  background: color-mix(in srgb, var(--accent) 45%, var(--muted) 55%);
+  transform: translateX(30px);
+}}
+.theme-input:not(:checked) + .theme-switch .moon-icon,
+.theme-input:checked + .theme-switch .sun-icon {{
+  color: #f8fafc;
+  opacity: 0.96;
+  transform: scale(1);
 }}
 .theme-input:focus-visible + .theme-switch {{
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }}
 .theme-toggle:hover .theme-switch {{
-  border-color: color-mix(in srgb, var(--muted) 62%, transparent);
-  background: color-mix(in srgb, var(--control) 78%, transparent);
+  border-color: #526173;
+  background: linear-gradient(180deg, #26303b 0%, #1b222b 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    inset 0 -1px 0 rgba(0,0,0,0.20),
+    0 2px 5px rgba(0,0,0,0.18);
 }}
 .icon-btn, .select {{
   border: 1px solid var(--line);
@@ -1465,18 +1487,31 @@ html[data-theme="light"] body {{
   background: linear-gradient(180deg, #f8fafc 0%, var(--bg) 48%, #e8edf3 100%);
 }}
 html[data-theme="light"] .theme-switch {{
-  border-color: #d7e1ec;
-  background: #f1f5f9;
+  border-color: #cbd5e1;
+  background: linear-gradient(180deg, #f8fafc 0%, #e8eef6 100%);
   color: #64748b;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.86),
+    inset 0 -1px 0 rgba(15,23,42,0.05),
+    0 1px 2px rgba(15,23,42,0.08);
+}}
+html[data-theme="light"] .theme-knob {{
+  border-color: rgba(96, 165, 250, 0.38);
+  background: linear-gradient(180deg, #ffffff 0%, #eef7ff 100%);
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255,255,255,0.98);
 }}
 html[data-theme="light"] .theme-input:checked + .theme-switch .theme-knob {{
-  background: #60a5fa;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: rgba(14, 165, 233, 0.48);
+}}
+html[data-theme="light"] .theme-input:checked + .theme-switch .sun-icon {{
+  color: #0284c7;
 }}
 html[data-theme="light"] .theme-toggle:hover .theme-switch {{
-  border-color: #cbd5e1;
-  background: #eaf2fb;
+  border-color: #b6c5d8;
+  background: linear-gradient(180deg, #ffffff 0%, #eaf2fb 100%);
 }}
 html[data-theme="light"] kbd {{
   border-color: #cbd5e1;
@@ -1629,8 +1664,8 @@ html[data-theme="light"] .footer {{
       <label class="theme-toggle" title="Toggle light theme">
         <input id="themeToggle" class="theme-input" type="checkbox" role="switch" aria-label="Light theme">
         <span class="theme-switch" aria-hidden="true">
-          <svg class="theme-icon" viewBox="0 0 24 24"><path d="M20 14.7A7.5 7.5 0 0 1 9.3 4a8 8 0 1 0 10.7 10.7Z"/></svg>
-          <svg class="theme-icon" viewBox="0 0 24 24"><path d="M12 3v2"/><path d="M12 19v2"/><path d="m4.22 4.22 1.42 1.42"/><path d="m18.36 18.36 1.42 1.42"/><path d="M3 12h2"/><path d="M19 12h2"/><path d="m4.22 19.78 1.42-1.42"/><path d="m18.36 5.64 1.42-1.42"/><circle cx="12" cy="12" r="4"/></svg>
+          <svg class="theme-icon moon-icon" viewBox="0 0 24 24"><path d="M20 14.7A7.5 7.5 0 0 1 9.3 4a8 8 0 1 0 10.7 10.7Z"/></svg>
+          <svg class="theme-icon sun-icon" viewBox="0 0 24 24"><path d="M12 3v2"/><path d="M12 19v2"/><path d="m4.22 4.22 1.42 1.42"/><path d="m18.36 18.36 1.42 1.42"/><path d="M3 12h2"/><path d="M19 12h2"/><path d="m4.22 19.78 1.42-1.42"/><path d="m18.36 5.64 1.42-1.42"/><circle cx="12" cy="12" r="4"/></svg>
           <span class="theme-knob"></span>
         </span>
       </label>
