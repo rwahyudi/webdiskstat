@@ -897,6 +897,41 @@ kbd {{
   z-index: 5;
   box-shadow: 0 1px 0 rgba(255,255,255,0.03), 0 8px 16px rgba(0,0,0,0.12);
 }}
+.tree-name-head {{
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}}
+.tree-name-head .tree-sort {{
+  flex: 1 1 auto;
+}}
+.tree-parent-btn {{
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--control) 72%, transparent);
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}}
+.tree-parent-btn:hover:not(:disabled) {{
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, var(--control));
+}}
+.tree-parent-btn:disabled {{
+  opacity: 0.42;
+  cursor: default;
+}}
+.tree-parent-btn .icon {{
+  width: 15px;
+  height: 15px;
+}}
 .tree-sort {{
   border: 0;
   background: transparent;
@@ -1553,6 +1588,16 @@ html[data-theme="light"] .top-files-head,
 html[data-theme="light"] .help-head {{
   background: #f1f5f9;
 }}
+html[data-theme="light"] .tree-parent-btn {{
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+}}
+html[data-theme="light"] .tree-parent-btn:hover:not(:disabled) {{
+  border-color: #93c5fd;
+  color: #0f172a;
+  background: #eaf2fb;
+}}
 html[data-theme="light"] .row.file {{
   color: #334155;
 }}
@@ -1658,9 +1703,6 @@ html[data-theme="light"] .footer {{
   <header class="toolbar">
     <nav id="crumbs" class="crumbs" aria-label="Path"></nav>
     <div class="tools">
-      <button id="upButton" class="icon-btn" title="Parent" aria-label="Parent">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
-      </button>
       <label class="theme-toggle" title="Toggle light theme">
         <input id="themeToggle" class="theme-input" type="checkbox" role="switch" aria-label="Light theme">
         <span class="theme-switch" aria-hidden="true">
@@ -1774,7 +1816,7 @@ html[data-theme="light"] .footer {{
           <ul>
             <li>Use the breadcrumb path at the top to jump to a parent directory.</li>
             <li>Drag the divider between the directory list and right panel to resize the right panel.</li>
-            <li>Use the up arrow button to go up one directory.</li>
+            <li>Use the parent button next to the Name column header to go up one directory.</li>
             <li>Use the home icon in the breadcrumb path to return to the scan root.</li>
             <li>Use the theme switch to toggle between dark and light themes.</li>
             <li>The URL changes as you browse, so directory views can be bookmarked.</li>
@@ -1875,7 +1917,6 @@ walk(DATA, null);
 
 const el = {{
   crumbs: document.getElementById("crumbs"),
-  upButton: document.getElementById("upButton"),
   themeToggle: document.getElementById("themeToggle"),
   helpButton: document.getElementById("helpButton"),
   helpPage: document.getElementById("helpPage"),
@@ -2134,6 +2175,21 @@ function makeHomeIcon() {{
   return svg;
 }}
 
+function makeUpIcon() {{
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  [
+    "M12 19V5",
+    "m5 12 7-7 7 7"
+  ].forEach(d => {{
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+  }});
+  return svg;
+}}
+
 function renderCrumbs() {{
   el.crumbs.textContent = "";
   pathToRoot(state.current).forEach((node, index, nodes) => {{
@@ -2223,6 +2279,19 @@ function makeHeaderButton(label, key, numeric = key !== "name" && key !== "modif
   return button;
 }}
 
+function makeParentHeaderButton() {{
+  const button = document.createElement("button");
+  const parentNode = parent.get(state.current.id);
+  button.className = "tree-parent-btn";
+  button.type = "button";
+  button.title = parentNode ? "Parent" : "Already at root";
+  button.setAttribute("aria-label", "Parent");
+  button.disabled = !parentNode;
+  button.appendChild(makeUpIcon());
+  button.addEventListener("click", goParent);
+  return button;
+}}
+
 function makeHeaderLabel(label, numeric = false) {{
   const span = document.createElement("span");
   span.className = numeric ? "tree-label numeric" : "tree-label";
@@ -2233,8 +2302,11 @@ function makeHeaderLabel(label, numeric = false) {{
 function renderTreeHeader() {{
   const header = document.createElement("div");
   header.className = "tree-header";
+  const nameHead = document.createElement("div");
+  nameHead.className = "tree-name-head";
+  nameHead.append(makeParentHeaderButton(), makeHeaderButton("Name", "name"));
   header.append(
-    makeHeaderButton("Name", "name"),
+    nameHead,
     makeHeaderButton("Items", "items"),
     makeHeaderButton("Files", "files"),
     makeHeaderButton("Size", "size"),
@@ -2898,9 +2970,6 @@ function showRenderError(error) {{
   el.detailStats.textContent = "";
 }}
 
-el.upButton.addEventListener("click", () => {{
-  goParent();
-}});
 el.themeToggle.addEventListener("change", event => {{
   setTheme(event.target.checked ? "light" : "dark");
 }});
