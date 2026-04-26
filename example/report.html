@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>webdiskstat - Generated 2026-04-26 21:08:11 AEST</title>
+<title>webdiskstat - Generated 2026-04-26 21:23:43 AEST</title>
 <script>
 try {
   document.documentElement.dataset.theme = localStorage.getItem("webdiskstat-theme") === "light" ? "light" : "dark";
@@ -650,7 +650,7 @@ kbd {
 .top-files[hidden] {
   display: none;
 }
-.top-files-head, .top-file-row {
+.top-file-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
   align-items: center;
@@ -658,12 +658,82 @@ kbd {
   padding: 10px 14px;
 }
 .top-files-head {
+  min-height: 43px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--subtle-line);
   background: #1b2027;
   color: var(--muted);
   font-size: 11px;
   font-weight: 750;
   text-transform: uppercase;
+}
+.top-file-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top-file-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  text-transform: none;
+}
+.top-file-limit {
+  width: 72px;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.top-file-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.pager-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--ink);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+.pager-btn:hover:not(:disabled) {
+  border-color: #64748b;
+  background: #232a33;
+}
+.pager-btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.pager-icon {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.top-file-page {
+  min-width: 46px;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
 }
 .top-files-body {
   min-height: 0;
@@ -912,6 +982,9 @@ html[data-theme="light"] .icon-btn:hover,
 html[data-theme="light"] .select:hover {
   background: #eaf2fb;
 }
+html[data-theme="light"] .pager-btn:hover:not(:disabled) {
+  background: #eaf2fb;
+}
 html[data-theme="light"] .tree-header,
 html[data-theme="light"] .top-files-head,
 html[data-theme="light"] .help-head {
@@ -1025,9 +1098,6 @@ html[data-theme="light"] .footer {
       <button id="upButton" class="icon-btn" title="Parent" aria-label="Parent">
         <svg class="icon" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
       </button>
-      <button id="rootButton" class="icon-btn" title="Root" aria-label="Root">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
-      </button>
       <label class="theme-toggle" title="Toggle light theme">
         <input id="themeToggle" class="theme-input" type="checkbox" role="switch" aria-label="Light theme">
         <span class="theme-switch" aria-hidden="true">
@@ -1056,9 +1126,27 @@ html[data-theme="light"] .footer {
         <section id="treemap" class="treemap" aria-label="Treemap"></section>
       </div>
       <div id="homeResizer" class="home-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize home panes" tabindex="0" hidden></div>
-      <section id="topFiles" class="top-files" aria-label="Top 10 biggest files" hidden>
+      <section id="topFiles" class="top-files" aria-label="Biggest files" hidden>
         <div class="top-files-head">
-          <span>Top 10 Biggest Files</span>
+          <span id="topFilesTitle" class="top-file-title">Top 10 Biggest Files</span>
+          <div class="top-file-controls">
+            <select id="topFilesLimit" class="top-file-limit" aria-label="Number of biggest files">
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="40">40</option>
+              <option value="50">50</option>
+            </select>
+            <div class="top-file-pager" aria-label="Top files pages">
+              <button id="topFilesPrev" class="pager-btn" type="button" title="Previous page" aria-label="Previous top files page">
+                <svg class="pager-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <span id="topFilesPage" class="top-file-page">1 / 1</span>
+              <button id="topFilesNext" class="pager-btn" type="button" title="Next page" aria-label="Next top files page">
+                <svg class="pager-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
           <span class="top-file-size">Size</span>
         </div>
         <div id="topFilesBody" class="top-files-body"></div>
@@ -1073,7 +1161,7 @@ html[data-theme="light"] .footer {
     </section>
   </main>
   <footer class="footer">
-    <time class="generated" datetime="2026-04-26T21:08:11+10:00">Generated 2026-04-26 21:08:11 AEST</time>
+    <time class="generated" datetime="2026-04-26T21:23:43+10:00">Generated 2026-04-26 21:23:43 AEST</time>
   </footer>
 </div>
 <section id="helpPage" class="help-page" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
@@ -1111,9 +1199,10 @@ html[data-theme="light"] .footer {
         <section class="help-section">
           <h3>Home View</h3>
           <ul>
-            <li>The home view shows the root scan path, a smaller treemap, and the top 10 biggest files.</li>
-            <li>Drag the divider between the treemap and the top 10 list to resize the home panes.</li>
-            <li>Double-click a top 10 file to jump to the directory containing it.</li>
+            <li>The home view shows the root scan path, a smaller treemap, and a biggest-files list.</li>
+            <li>Choose 10 to 50 biggest files from the list menu. Results are paged 10 at a time.</li>
+            <li>Drag the divider between the treemap and biggest-files list to resize the home panes.</li>
+            <li>Double-click a listed file to jump to the directory containing it.</li>
             <li>The generated date is shown at the bottom of the report.</li>
           </ul>
         </section>
@@ -1123,7 +1212,7 @@ html[data-theme="light"] .footer {
             <li>Use the breadcrumb path at the top to jump to a parent directory.</li>
             <li>Drag the divider between the directory list and right panel to resize the right panel.</li>
             <li>Use the up arrow button to go up one directory.</li>
-            <li>Use the home button to return to the scan root.</li>
+            <li>Use the home icon in the breadcrumb path to return to the scan root.</li>
             <li>Use the theme switch to toggle between dark and light themes.</li>
             <li>The URL changes as you browse, so directory views can be bookmarked.</li>
           </ul>
@@ -1192,6 +1281,8 @@ const palette = [
   "#0e7490", "#9333ea", "#ca8a04", "#15803d", "#db2777", "#4338ca"
 ];
 const TREEMAP_MAX_ITEMS = 1500;
+const TOP_FILES_PAGE_SIZE = 10;
+const TOP_FILES_LIMITS = [10, 20, 30, 40, 50];
 const THEME_STORAGE_KEY = "webdiskstat-theme";
 const MAIN_PANE_STORAGE_KEY = "webdiskstat-sidebar-size";
 const MAIN_MIN_SIDEBAR_SIZE = 280;
@@ -1208,7 +1299,9 @@ const state = {
   current: DATA,
   selected: DATA,
   sortKey: "size",
-  sortDir: "desc"
+  sortDir: "desc",
+  topFilesLimit: 10,
+  topFilesPage: 0
 };
 
 const byId = new Map();
@@ -1220,7 +1313,6 @@ walk(DATA, null);
 const el = {
   crumbs: document.getElementById("crumbs"),
   upButton: document.getElementById("upButton"),
-  rootButton: document.getElementById("rootButton"),
   themeToggle: document.getElementById("themeToggle"),
   helpButton: document.getElementById("helpButton"),
   helpPage: document.getElementById("helpPage"),
@@ -1237,6 +1329,11 @@ const el = {
   treemap: document.getElementById("treemap"),
   homeResizer: document.getElementById("homeResizer"),
   topFiles: document.getElementById("topFiles"),
+  topFilesTitle: document.getElementById("topFilesTitle"),
+  topFilesLimit: document.getElementById("topFilesLimit"),
+  topFilesPrev: document.getElementById("topFilesPrev"),
+  topFilesNext: document.getElementById("topFilesNext"),
+  topFilesPage: document.getElementById("topFilesPage"),
   topFilesBody: document.getElementById("topFilesBody"),
   details: document.getElementById("details"),
   detailName: document.getElementById("detailName"),
@@ -1804,6 +1901,17 @@ function collectFiles(node, files) {
   (node.children || []).forEach(child => collectFiles(child, files));
 }
 
+function normalizeTopFilesLimit(value) {
+  const numeric = Number(value);
+  return TOP_FILES_LIMITS.includes(numeric) ? numeric : TOP_FILES_LIMITS[0];
+}
+
+function updateTopFilesPage(delta) {
+  state.topFilesPage += delta;
+  renderHomePanel();
+  setSelected(state.selected);
+}
+
 function isMainResizerVisible() {
   return getComputedStyle(el.mainResizer).display !== "none";
 }
@@ -2062,10 +2170,18 @@ function renderHomePanel() {
   const files = [];
   collectFiles(DATA, files);
   files.sort((a, b) => b.size - a.size);
-  const topFiles = files.slice(0, 10);
+  state.topFilesLimit = normalizeTopFilesLimit(state.topFilesLimit);
+  el.topFilesLimit.value = String(state.topFilesLimit);
+  el.topFilesTitle.textContent = `Top ${state.topFilesLimit} Biggest Files`;
+  el.topFiles.setAttribute("aria-label", `Top ${state.topFilesLimit} biggest files`);
 
   el.topFilesBody.textContent = "";
-  if (!topFiles.length) {
+  el.topFilesBody.scrollTop = 0;
+  if (!files.length) {
+    state.topFilesPage = 0;
+    el.topFilesPrev.disabled = true;
+    el.topFilesNext.disabled = true;
+    el.topFilesPage.textContent = "0 / 0";
     const empty = document.createElement("div");
     empty.className = "top-file-row";
     empty.textContent = "No files";
@@ -2073,7 +2189,17 @@ function renderHomePanel() {
     return;
   }
 
-  topFiles.forEach(file => {
+  const topFiles = files.slice(0, state.topFilesLimit);
+  const pageCount = Math.max(1, Math.ceil(topFiles.length / TOP_FILES_PAGE_SIZE));
+  state.topFilesPage = Math.max(0, Math.min(pageCount - 1, state.topFilesPage));
+  const pageStart = state.topFilesPage * TOP_FILES_PAGE_SIZE;
+  const visibleFiles = topFiles.slice(pageStart, pageStart + TOP_FILES_PAGE_SIZE);
+
+  el.topFilesPrev.disabled = state.topFilesPage <= 0;
+  el.topFilesNext.disabled = state.topFilesPage >= pageCount - 1;
+  el.topFilesPage.textContent = `${state.topFilesPage + 1} / ${pageCount}`;
+
+  visibleFiles.forEach(file => {
     const row = document.createElement("div");
     row.className = "top-file-row";
     row.dataset.id = file.id;
@@ -2212,7 +2338,6 @@ function showRenderError(error) {
 el.upButton.addEventListener("click", () => {
   goParent();
 });
-el.rootButton.addEventListener("click", () => setCurrent(DATA));
 el.themeToggle.addEventListener("change", event => {
   setTheme(event.target.checked ? "light" : "dark");
 });
@@ -2225,6 +2350,14 @@ el.mainResizer.addEventListener("pointerdown", beginMainResize);
 el.mainResizer.addEventListener("keydown", handleMainResizerKey);
 el.homeResizer.addEventListener("pointerdown", beginHomeResize);
 el.homeResizer.addEventListener("keydown", handleHomeResizerKey);
+el.topFilesLimit.addEventListener("change", event => {
+  state.topFilesLimit = normalizeTopFilesLimit(event.target.value);
+  state.topFilesPage = 0;
+  renderHomePanel();
+  setSelected(state.selected);
+});
+el.topFilesPrev.addEventListener("click", () => updateTopFilesPage(-1));
+el.topFilesNext.addEventListener("click", () => updateTopFilesPage(1));
 el.sidebar.addEventListener("wheel", event => {
   if (event.target && event.target.closest(".tree")) return;
   if (!event.deltaY && !event.deltaX) return;

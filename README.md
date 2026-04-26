@@ -82,9 +82,10 @@ Running the script without piped input or an input file prints the usage instruc
 - The treemap shows the current directory, including directories and files directly inside that directory.
 - Directory tiles use distinct shaded colors. File tiles are colored by extension.
 - The divider between the directory list and right panel can be dragged to resize the right panel.
-- The home view shows a smaller treemap and a framed top 10 biggest files list.
-- The home view divider can be dragged to resize the treemap and top 10 list.
-- Double-click a top 10 file to jump to the directory containing that file.
+- The home view shows a smaller treemap and a framed biggest-files list.
+- The biggest-files list can show 10 to 50 entries and paginates 10 rows at a time.
+- The home view divider can be dragged to resize the treemap and biggest-files list.
+- Double-click a listed file to jump to the directory containing that file.
 - Details show size, percentage, type, extension, item count, file count, and modified time when `gdu` provides it.
 - Generated date and time are shown in the browser title and footer.
 - The Help button in the toolbar explains features, mouse actions, keyboard shortcuts, and navigation.
