@@ -540,7 +540,9 @@ try {{
   --row-hover: #262d36;
   --row-active: #203747;
   --row-active-line: #38bdf8;
+  --list-bar-top: rgba(123, 215, 255, 0.18);
   --list-bar: rgba(123, 215, 255, 0.14);
+  --list-bar-bottom: rgba(123, 215, 255, 0.08);
   --list-bar-edge: rgba(123, 215, 255, 0.38);
   --tile-outline: #dbeafe;
   --shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
@@ -563,7 +565,9 @@ html[data-theme="light"] {{
   --row-hover: #eef6ff;
   --row-active: #dbeafe;
   --row-active-line: #0284c7;
+  --list-bar-top: rgba(3, 105, 161, 0.12);
   --list-bar: rgba(3, 105, 161, 0.09);
+  --list-bar-bottom: rgba(3, 105, 161, 0.04);
   --list-bar-edge: rgba(3, 105, 161, 0.26);
   --tile-outline: #0f172a;
   --shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
@@ -981,7 +985,7 @@ kbd {{
   top: 0;
   bottom: 0;
   width: var(--bar, 0%);
-  background: var(--list-bar);
+  background: linear-gradient(180deg, var(--list-bar-top) 0%, var(--list-bar) 48%, var(--list-bar-bottom) 100%);
   box-shadow: inset -2px 0 0 var(--list-bar-edge);
   pointer-events: none;
 }}
@@ -1602,7 +1606,7 @@ html[data-theme="light"] .row.file {{
   color: #334155;
 }}
 html[data-theme="light"] .row::before {{
-  background: var(--list-bar);
+  background: linear-gradient(180deg, var(--list-bar-top) 0%, var(--list-bar) 48%, var(--list-bar-bottom) 100%);
   box-shadow: inset -2px 0 0 var(--list-bar-edge);
 }}
 html[data-theme="light"] .row-kind {{
