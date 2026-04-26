@@ -711,11 +711,11 @@ kbd {{
   grid-template-columns: 1fr 1fr;
   align-items: center;
   padding: 0 8px;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: 999px;
-  background: var(--control);
-  color: var(--muted);
-  box-shadow: var(--shadow-soft);
+  background: color-mix(in srgb, var(--control) 62%, transparent);
+  color: color-mix(in srgb, var(--muted) 76%, var(--ink) 24%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
 }}
 .theme-icon {{
   width: 14px;
@@ -734,19 +734,21 @@ kbd {{
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.28);
+  background: color-mix(in srgb, var(--muted) 58%, var(--panel) 42%);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.18);
   transition: transform 160ms ease, background 160ms ease;
 }}
 .theme-input:checked + .theme-switch .theme-knob {{
   transform: translateX(26px);
+  background: color-mix(in srgb, var(--accent) 45%, var(--muted) 55%);
 }}
 .theme-input:focus-visible + .theme-switch {{
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }}
 .theme-toggle:hover .theme-switch {{
-  border-color: #64748b;
+  border-color: color-mix(in srgb, var(--muted) 62%, transparent);
+  background: color-mix(in srgb, var(--control) 78%, transparent);
 }}
 .icon-btn, .select {{
   border: 1px solid var(--line);
@@ -1639,7 +1641,7 @@ html[data-theme="light"] .footer {{
       <div id="homeResizer" class="home-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize home panes" tabindex="0" hidden></div>
       <section id="topFiles" class="top-files" aria-label="Biggest files" hidden>
         <div class="top-files-head">
-          <span id="topFilesTitle" class="top-file-title">Top 10 Biggest Files</span>
+          <span id="topFilesTitle" class="top-file-title">List of biggest file</span>
           <div class="top-file-controls">
             <select id="topFilesLimit" class="top-file-limit" aria-label="Number of biggest files">
               <option value="10">10</option>
@@ -2683,8 +2685,8 @@ function renderHomePanel() {{
   files.sort((a, b) => b.size - a.size);
   state.topFilesLimit = normalizeTopFilesLimit(state.topFilesLimit);
   el.topFilesLimit.value = String(state.topFilesLimit);
-  el.topFilesTitle.textContent = `Top ${{state.topFilesLimit}} Biggest Files`;
-  el.topFiles.setAttribute("aria-label", `Top ${{state.topFilesLimit}} biggest files`);
+  el.topFilesTitle.textContent = "List of biggest file";
+  el.topFiles.setAttribute("aria-label", `List of biggest file, showing ${{state.topFilesLimit}} entries`);
 
   el.topFilesBody.textContent = "";
   el.topFilesBody.scrollTop = 0;
