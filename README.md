@@ -19,7 +19,9 @@
 - Encrypted reports use Web Crypto when available and include a JavaScript fallback for `file://` and other non-HTTPS schemes.
 - Shows an encrypted or unencrypted data indicator in the footer.
 - Displays a WinDirStat-style directory list with name, item count, file count, size, modified date, and percentage columns.
+- Virtualizes large directory listings so directories with thousands of entries remain responsive.
 - Sorts directory rows by name, item count, file count, size, or modified date.
+- Lets users show or hide optional directory-list columns from the column settings menu.
 - Uses comma grouping for file and item counts.
 - Shows an interactive treemap for the current directory.
 - Colors directory tiles distinctly and file tiles by extension.
@@ -28,11 +30,11 @@
 - Supports double-click navigation into directories and from biggest-file rows to containing directories.
 - Shows details for the selected entry, including size, percentage, type, extension, item count, file count, and modified time when available.
 - Supports breadcrumb navigation, parent navigation, bookmarkable URL hashes, and browser back/forward navigation.
-- Supports keyboard navigation with arrow keys, Home, End, Enter, Backspace, and Escape.
+- Supports keyboard navigation with arrow keys, Page Up, Page Down, Home, End, Enter, Backspace, Escape, `?` help, and sort shortcuts.
 - Lets users resize the main split pane and the home-view treemap/list split.
 - Includes a dark theme, a light theme, and persistent theme/pane-size preferences when browser storage is available.
 - Includes an in-report Help dialog for features, mouse actions, keyboard shortcuts, and navigation.
-- Shows the generated date and time in the browser title and footer.
+- Shows the generated date, time, and final HTML file size in the footer.
 - Works as a static report after generation without Python or `gdu`.
 
 ## Screenshot
@@ -131,6 +133,7 @@ Encrypt the embedded report data:
 
 - The left panel lists the current directory entries, including modified time when the scan data provides it.
 - Columns are sortable by name, item count, file count, size, and modified date.
+- Optional columns can be shown or hidden from the column settings button next to the Name header.
 - File and item counts use comma grouping.
 - The treemap shows the current directory, including directories and files directly inside that directory.
 - Directory tiles use distinct shaded colors. File tiles are colored by extension.
@@ -140,16 +143,19 @@ Encrypt the embedded report data:
 - The home view divider can be dragged to resize the treemap and biggest-files list.
 - Double-click a listed file to jump to the directory containing that file.
 - Details show size, percentage, type, extension, item count, file count, and modified time when the scan data provides it.
-- Generated date and time are shown in the browser title and footer.
-- The Help button in the toolbar explains features, mouse actions, keyboard shortcuts, and navigation.
+- Generated date, time, and final HTML file size are shown in the footer.
+- The Help button in the toolbar, or the `?` shortcut, explains features, mouse actions, keyboard shortcuts, and navigation.
 - The toolbar theme switch toggles between the default dark theme and a light theme.
 
 ## Keyboard and Navigation
 
 - `Arrow Up` / `Arrow Down`: move selection in the directory list.
+- `Page Up` / `Page Down`: move selection by one visible page.
 - `Home` / `End`: jump to first or last item.
+- `n` / `s` / `C` / `M` or `m`: sort by name, size, file count, or modified time. Repeating the same shortcut toggles ascending or descending order.
 - `Enter` or `Arrow Right`: enter the selected directory.
 - `Backspace` or `Arrow Left`: go up one directory.
+- `?`: open the Help dialog.
 - The URL hash changes as you navigate, so directory views are bookmarkable.
 
 ## Notes

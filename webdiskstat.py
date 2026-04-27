@@ -28,6 +28,7 @@ from typing import Any
 
 
 APP_TITLE = "webdiskstat"
+REPORT_SIZE_PLACEHOLDER = "__WEBDISKSTAT_REPORT_SIZE__"
 ENCRYPTION_AAD = b"webdiskstat-report-data-v1"
 ENCRYPTION_ALGORITHM = "ChaCha20-Poly1305"
 PBKDF2_ITERATIONS = 310_000
@@ -755,6 +756,37 @@ def optimize_report_html(report: str) -> str:
     return report + "\n"
 
 
+def format_report_file_size(size: int) -> str:
+    units = ("bytes", "KiB", "MiB", "GiB")
+    value = float(size)
+    unit = units[0]
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            break
+        value /= 1024
+
+    if unit == "bytes":
+        amount = f"{size:,}"
+    elif value >= 100:
+        amount = f"{value:,.0f}"
+    elif value >= 10:
+        amount = f"{value:,.1f}"
+    else:
+        amount = f"{value:,.2f}"
+    return f"HTML file: {amount} {unit}"
+
+
+def fill_report_size(report: str) -> str:
+    size_label = format_report_file_size(len(report.encode("utf-8")))
+    for _ in range(10):
+        candidate = report.replace(REPORT_SIZE_PLACEHOLDER, size_label)
+        next_label = format_report_file_size(len(candidate.encode("utf-8")))
+        if next_label == size_label:
+            return candidate
+        size_label = next_label
+    return report.replace(REPORT_SIZE_PLACEHOLDER, size_label)
+
+
 def render_report(root: dict[str, Any], password: str | None = None) -> str:
     data = report_data_payload(root, password)
     encrypted_report = password is not None
@@ -960,6 +992,19 @@ kbd {{
 }}
 .sep {{ color: var(--muted); }}
 .generated {{
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}}
+.footer-meta {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}}
+.report-size {{
   color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -1190,16 +1235,29 @@ kbd {{
   white-space: nowrap;
 }}
 .tree {{
+  --tree-columns: minmax(150px, 1fr) 52px 52px 82px 126px 46px;
+  --tree-min-width: 600px;
   min-height: 0;
   overflow: auto;
+}}
+.tree-body {{
+  position: relative;
+  min-width: var(--tree-min-width);
+}}
+.tree-body .row {{
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 36px;
+  min-height: 36px;
 }}
 .tree-header {{
   min-height: 32px;
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 52px 52px 82px 126px 46px;
+  grid-template-columns: var(--tree-columns);
   align-items: center;
   gap: 8px;
-  min-width: 600px;
+  min-width: var(--tree-min-width);
   padding: 0 10px 0 12px;
   border-bottom: 1px solid var(--line);
   background: #1b2027;
@@ -1247,6 +1305,69 @@ kbd {{
   width: 15px;
   height: 15px;
 }}
+.tree-columns-btn {{
+  width: 26px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--control) 72%, transparent);
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}}
+.tree-columns-btn:hover,
+.tree-columns-btn[aria-expanded="true"] {{
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, var(--control));
+}}
+.tree-columns-btn .icon {{
+  width: 15px;
+  height: 15px;
+}}
+.tree-columns-menu {{
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 10px;
+  z-index: 20;
+  min-width: 190px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #171d25;
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  text-transform: none;
+}}
+.tree-columns-menu[hidden] {{
+  display: none;
+}}
+.tree-columns-title {{
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}}
+.tree-column-option {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}}
+.tree-column-option input {{
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}}
 .tree-sort {{
   border: 0;
   background: transparent;
@@ -1279,10 +1400,10 @@ kbd {{
 .row {{
   min-height: 36px;
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 52px 52px 82px 126px 46px;
+  grid-template-columns: var(--tree-columns);
   align-items: center;
   gap: 8px;
-  min-width: 600px;
+  min-width: var(--tree-min-width);
   padding: 0 10px 0 12px;
   border-bottom: 1px solid var(--subtle-line);
   cursor: pointer;
@@ -1871,6 +1992,21 @@ html[data-theme="light"] .tree-parent-btn:hover:not(:disabled) {{
   color: #0f172a;
   background: #eaf2fb;
 }}
+html[data-theme="light"] .tree-columns-btn {{
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+}}
+html[data-theme="light"] .tree-columns-btn:hover,
+html[data-theme="light"] .tree-columns-btn[aria-expanded="true"] {{
+  border-color: #93c5fd;
+  color: #0f172a;
+  background: #eaf2fb;
+}}
+html[data-theme="light"] .tree-columns-menu {{
+  background: #ffffff;
+  border-color: #cbd5e1;
+}}
 html[data-theme="light"] .row.file {{
   color: #334155;
 }}
@@ -1992,7 +2128,7 @@ html[data-theme="light"] .report-security.plain {{
           <span class="theme-knob"></span>
         </span>
       </label>
-      <button id="helpButton" class="icon-btn" title="Help" aria-label="Help">
+      <button id="helpButton" class="icon-btn" title="Help (?)" aria-label="Help">
         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.8 2.8 0 0 1 5 1.7c0 2-2.5 2.2-2.5 4.3"/><path d="M12 18h.01"/></svg>
       </button>
     </div>
@@ -2039,7 +2175,10 @@ html[data-theme="light"] .report-security.plain {{
   </main>
   <footer class="footer">
     {footer_status}
-    <time class="generated" datetime="{html.escape(generated_iso)}">Generated {html.escape(generated_display)}</time>
+    <span class="footer-meta">
+      <span class="report-size" title="Final generated HTML file size">{REPORT_SIZE_PLACEHOLDER}</span>
+      <time class="generated" datetime="{html.escape(generated_iso)}">Generated {html.escape(generated_display)}</time>
+    </span>
   </footer>
 </div>
 <section id="helpPage" class="help-page" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
@@ -2062,6 +2201,7 @@ html[data-theme="light"] .report-security.plain {{
             <li>Click a row to select it and update the details panel.</li>
             <li>Double-click a directory to enter it.</li>
             <li>Use the column headers to sort by name, items, files, size, or modified date.</li>
+            <li>Use the column settings button next to the Name header to show or hide optional columns.</li>
             <li>Modified time appears when it was included in the scan data.</li>
           </ul>
         </section>
@@ -2099,9 +2239,12 @@ html[data-theme="light"] .report-security.plain {{
           <h3>Keyboard</h3>
           <div class="shortcut-list">
             <div><span><kbd>Up</kbd> / <kbd>Down</kbd></span><span>Move selection in the list.</span></div>
-            <div><span><kbd>Home</kbd> / <kbd>End</kbd></span><span>Jump to the first or last visible row.</span></div>
+            <div><span><kbd>Page Up</kbd> / <kbd>Page Down</kbd></span><span>Move selection by one visible page.</span></div>
+            <div><span><kbd>Home</kbd> / <kbd>End</kbd></span><span>Jump to the first or last item.</span></div>
+            <div><span><kbd>n</kbd> / <kbd>s</kbd> / <kbd>C</kbd> / <kbd>M</kbd>/<kbd>m</kbd></span><span>Sort by name, size, file count, or modified time.</span></div>
             <div><span><kbd>Enter</kbd> / <kbd>Right</kbd></span><span>Enter the selected directory.</span></div>
             <div><span><kbd>Backspace</kbd> / <kbd>Left</kbd></span><span>Go up one directory.</span></div>
+            <div><span><kbd>?</kbd></span><span>Open this help page.</span></div>
             <div><span><kbd>Esc</kbd></span><span>Close this help page.</span></div>
           </div>
         </section>
@@ -2550,7 +2693,32 @@ const palette = [
   "#0e7490", "#9333ea", "#ca8a04", "#15803d", "#db2777", "#4338ca"
 ];
 const TREEMAP_MAX_ITEMS = 1500;
+const TREE_ROW_HEIGHT = 36;
+const TREE_OVERSCAN_ROWS = 8;
 const TOP_FILES_LIMITS = [10, 20, 30, 40, 50];
+const DEFAULT_TREE_COLUMNS = Object.freeze({{
+  items: true,
+  files: true,
+  size: true,
+  modified: true,
+  percent: true
+}});
+const TREE_COLUMNS = [
+  {{ key: "name", label: "Name", menuLabel: "Name", grid: "minmax(150px, 1fr)", minWidth: 260, required: true, sortKey: "name" }},
+  {{ key: "items", label: "Items", menuLabel: "Items", grid: "52px", minWidth: 52, numeric: true, sortKey: "items" }},
+  {{ key: "files", label: "Files", menuLabel: "Files", grid: "52px", minWidth: 52, numeric: true, sortKey: "files" }},
+  {{ key: "size", label: "Size", menuLabel: "Size", grid: "82px", minWidth: 82, numeric: true, sortKey: "size" }},
+  {{ key: "modified", label: "Modified", menuLabel: "Modified", grid: "126px", minWidth: 126, sortKey: "modified" }},
+  {{ key: "percent", label: "%", menuLabel: "Percent", grid: "46px", minWidth: 46, numeric: true }}
+];
+const SORT_SHORTCUTS = new Map([
+  ["n", "name"],
+  ["s", "size"],
+  ["C", "files"],
+  ["M", "modified"],
+  ["m", "modified"]
+]);
+const TREE_COLUMN_STORAGE_KEY = "webdiskstat-tree-columns";
 const THEME_STORAGE_KEY = "webdiskstat-theme";
 const MAIN_PANE_STORAGE_KEY = "webdiskstat-sidebar-size";
 const MAIN_MIN_SIDEBAR_SIZE = 280;
@@ -2568,13 +2736,22 @@ const state = {{
   selected: null,
   sortKey: "size",
   sortDir: "desc",
-  topFilesLimit: 10
+  topFilesLimit: 10,
+  visibleColumns: {{ ...DEFAULT_TREE_COLUMNS }}
 }};
 
 const byId = new Map();
 const byPath = new Map();
 const parent = new Map();
 let nextNodeId = 0;
+const treeView = {{
+  node: null,
+  children: [],
+  total: 0,
+  body: null,
+  start: -1,
+  end: -1
+}};
 
 const el = {{
   crumbs: document.getElementById("crumbs"),
@@ -2794,6 +2971,7 @@ function directoryForNode(node) {{
 }}
 
 function setSelected(node) {{
+  if (!node) return;
   state.selected = node;
   renderDetails();
   document.querySelectorAll(".row.active, .tile.active, .top-file-row.active").forEach(item => item.classList.remove("active"));
@@ -2843,6 +3021,24 @@ function makeUpIcon() {{
   [
     "M12 19V5",
     "m5 12 7-7 7 7"
+  ].forEach(d => {{
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+  }});
+  return svg;
+}}
+
+function makeColumnsIcon() {{
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  [
+    "M4 5h16",
+    "M4 12h16",
+    "M4 19h16",
+    "M8 5v14",
+    "M16 5v14"
   ].forEach(d => {{
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", d);
@@ -2928,6 +3124,139 @@ function setSort(key) {{
   setSelected(state.selected);
 }}
 
+function handleSortShortcut(event) {{
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  const key = SORT_SHORTCUTS.get(event.key);
+  if (!key) return false;
+  event.preventDefault();
+  setSort(key);
+  return true;
+}}
+
+function currentTreeChildren() {{
+  if (treeView.node === state.current) return treeView.children;
+  return sortedChildren(state.current);
+}}
+
+function defaultTreeColumns() {{
+  return {{ ...DEFAULT_TREE_COLUMNS }};
+}}
+
+function readStoredTreeColumns() {{
+  const columns = defaultTreeColumns();
+  try {{
+    const stored = JSON.parse(localStorage.getItem(TREE_COLUMN_STORAGE_KEY) || "{{}}");
+    Object.keys(columns).forEach(key => {{
+      if (typeof stored[key] === "boolean") columns[key] = stored[key];
+    }});
+  }} catch (error) {{
+    // Column settings are optional; the report still works when storage is unavailable.
+  }}
+  return columns;
+}}
+
+function storeTreeColumns() {{
+  try {{
+    localStorage.setItem(TREE_COLUMN_STORAGE_KEY, JSON.stringify(state.visibleColumns));
+  }} catch (error) {{
+    // Ignore storage failures in strict file contexts.
+  }}
+}}
+
+function isTreeColumnVisible(key) {{
+  if (key === "name") return true;
+  return state.visibleColumns[key] !== false;
+}}
+
+function visibleTreeColumns() {{
+  return TREE_COLUMNS.filter(column => isTreeColumnVisible(column.key));
+}}
+
+function applyTreeColumnLayout() {{
+  const columns = visibleTreeColumns();
+  const template = columns.map(column => column.grid).join(" ");
+  const minWidth = columns.reduce((total, column) => total + column.minWidth, 0) +
+    Math.max(0, columns.length - 1) * 8 +
+    22;
+  el.tree.style.setProperty("--tree-columns", template);
+  el.tree.style.setProperty("--tree-min-width", `${{Math.max(300, minWidth)}}px`);
+}}
+
+function closeTreeColumnsMenu(focusButton = false) {{
+  const menu = el.tree.querySelector(".tree-columns-menu");
+  const button = el.tree.querySelector(".tree-columns-btn");
+  if (!menu || menu.hidden) return false;
+  menu.hidden = true;
+  if (button) {{
+    button.setAttribute("aria-expanded", "false");
+    if (focusButton) button.focus();
+  }}
+  return true;
+}}
+
+function reopenTreeColumnsMenu() {{
+  const menu = el.tree.querySelector(".tree-columns-menu");
+  const button = el.tree.querySelector(".tree-columns-btn");
+  if (!menu || !button) return;
+  menu.hidden = false;
+  button.setAttribute("aria-expanded", "true");
+}}
+
+function setTreeColumnVisible(key, visible) {{
+  state.visibleColumns[key] = visible;
+  storeTreeColumns();
+  renderTree();
+  setSelected(state.selected);
+  reopenTreeColumnsMenu();
+}}
+
+function makeTreeColumnsButton(menu) {{
+  const button = document.createElement("button");
+  button.className = "tree-columns-btn";
+  button.type = "button";
+  button.title = "Column settings";
+  button.setAttribute("aria-label", "Column settings");
+  button.setAttribute("aria-haspopup", "true");
+  button.setAttribute("aria-expanded", "false");
+  button.appendChild(makeColumnsIcon());
+  button.addEventListener("click", event => {{
+    event.stopPropagation();
+    const open = menu.hidden;
+    closeTreeColumnsMenu();
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", String(open));
+  }});
+  return button;
+}}
+
+function makeTreeColumnsMenu() {{
+  const menu = document.createElement("div");
+  menu.className = "tree-columns-menu";
+  menu.hidden = true;
+  menu.addEventListener("click", event => event.stopPropagation());
+
+  const title = document.createElement("div");
+  title.className = "tree-columns-title";
+  title.textContent = "Columns";
+  menu.appendChild(title);
+
+  TREE_COLUMNS.filter(column => !column.required).forEach(column => {{
+    const label = document.createElement("label");
+    label.className = "tree-column-option";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = isTreeColumnVisible(column.key);
+    input.addEventListener("change", () => setTreeColumnVisible(column.key, input.checked));
+
+    const text = document.createElement("span");
+    text.textContent = column.menuLabel;
+    label.append(input, text);
+    menu.appendChild(label);
+  }});
+  return menu;
+}}
+
 function makeHeaderButton(label, key, numeric = key !== "name" && key !== "modified") {{
   const button = document.createElement("button");
   button.className = "tree-sort";
@@ -2963,22 +3292,113 @@ function makeHeaderLabel(label, numeric = false) {{
 function renderTreeHeader() {{
   const header = document.createElement("div");
   header.className = "tree-header";
+  const columnsMenu = makeTreeColumnsMenu();
   const nameHead = document.createElement("div");
   nameHead.className = "tree-name-head";
-  nameHead.append(makeParentHeaderButton(), makeHeaderButton("Name", "name"));
-  header.append(
-    nameHead,
-    makeHeaderButton("Items", "items"),
-    makeHeaderButton("Files", "files"),
-    makeHeaderButton("Size", "size"),
-    makeHeaderButton("Modified", "modified", false),
-    makeHeaderLabel("%", true)
-  );
+  nameHead.append(makeParentHeaderButton(), makeHeaderButton("Name", "name"), makeTreeColumnsButton(columnsMenu));
+
+  const cells = visibleTreeColumns().map(column => {{
+    if (column.key === "name") return nameHead;
+    if (column.sortKey) return makeHeaderButton(column.label, column.sortKey, column.numeric);
+    return makeHeaderLabel(column.label, column.numeric);
+  }});
+  header.append(...cells, columnsMenu);
   el.tree.appendChild(header);
+}}
+
+function resetTreeView() {{
+  treeView.node = null;
+  treeView.children = [];
+  treeView.total = 0;
+  treeView.body = null;
+  treeView.start = -1;
+  treeView.end = -1;
+}}
+
+function createTreeRow(child, total) {{
+  const row = document.createElement("div");
+  row.className = `row ${{child.type}}`;
+  if (state.selected && child.id === state.selected.id) row.classList.add("active");
+  row.dataset.id = child.id;
+  row.style.setProperty("--bar", `${{Math.max(2, child.size / Math.max(total, 1) * 100)}}%`);
+  row.style.setProperty("--row-color", colorFor(child));
+  row.title = child.path || child.name;
+  row.addEventListener("click", () => setSelected(child));
+  row.addEventListener("dblclick", () => {{
+    if (child.type === "dir") setCurrent(child);
+  }});
+
+  const name = document.createElement("div");
+  name.className = "row-name";
+  const swatch = document.createElement("span");
+  swatch.className = "swatch";
+  const kind = document.createElement("span");
+  kind.className = "row-kind";
+  kind.textContent = child.type === "dir" ? "DIR" : "FILE";
+  const label = document.createElement("span");
+  label.textContent = child.name;
+  name.append(swatch, kind, label);
+
+  const size = document.createElement("div");
+  size.className = "row-size";
+  size.textContent = formatBytes(child.size);
+
+  const items = document.createElement("div");
+  items.className = "row-count";
+  items.textContent = formatCount(child.items);
+
+  const files = document.createElement("div");
+  files.className = "row-count";
+  files.textContent = formatCount(child.files);
+
+  const modified = document.createElement("div");
+  modified.className = "row-modified";
+  modified.textContent = formatListModifiedTime(child.mtime);
+  modified.title = formatModifiedTime(child.mtime) || "Modified time unavailable";
+
+  const percent = document.createElement("div");
+  percent.className = "row-pct";
+  percent.textContent = pct(child.size, total);
+
+  const cells = [name];
+  if (isTreeColumnVisible("items")) cells.push(items);
+  if (isTreeColumnVisible("files")) cells.push(files);
+  if (isTreeColumnVisible("size")) cells.push(size);
+  if (isTreeColumnVisible("modified")) cells.push(modified);
+  if (isTreeColumnVisible("percent")) cells.push(percent);
+  row.append(...cells);
+  return row;
+}}
+
+function renderVisibleTreeRows(force = false) {{
+  if (!treeView.body) return;
+  const header = el.tree.querySelector(".tree-header");
+  const headerHeight = header ? header.offsetHeight : 0;
+  const bodyScrollTop = Math.max(0, el.tree.scrollTop - headerHeight);
+  const viewportHeight = Math.max(0, el.tree.clientHeight - headerHeight);
+  const start = Math.max(0, Math.floor(bodyScrollTop / TREE_ROW_HEIGHT) - TREE_OVERSCAN_ROWS);
+  const end = Math.min(
+    treeView.children.length,
+    Math.ceil((bodyScrollTop + viewportHeight) / TREE_ROW_HEIGHT) + TREE_OVERSCAN_ROWS
+  );
+  if (!force && start === treeView.start && end === treeView.end) return;
+
+  treeView.start = start;
+  treeView.end = end;
+  treeView.body.textContent = "";
+  const fragment = document.createDocumentFragment();
+  for (let index = start; index < end; index++) {{
+    const row = createTreeRow(treeView.children[index], treeView.total);
+    row.style.transform = `translateY(${{index * TREE_ROW_HEIGHT}}px)`;
+    fragment.appendChild(row);
+  }}
+  treeView.body.appendChild(fragment);
 }}
 
 function renderTree() {{
   el.tree.textContent = "";
+  resetTreeView();
+  applyTreeColumnLayout();
   renderTreeHeader();
   const children = sortedChildren(state.current);
   ensureListSelection(children);
@@ -2990,53 +3410,16 @@ function renderTree() {{
     el.tree.appendChild(empty);
     return;
   }}
-  children.forEach(child => {{
-    const row = document.createElement("div");
-    row.className = `row ${{child.type}}`;
-    row.dataset.id = child.id;
-    row.style.setProperty("--bar", `${{Math.max(2, child.size / Math.max(total, 1) * 100)}}%`);
-    row.style.setProperty("--row-color", colorFor(child));
-    row.title = child.path || child.name;
-    row.addEventListener("click", () => setSelected(child));
-    row.addEventListener("dblclick", () => {{
-      if (child.type === "dir") setCurrent(child);
-    }});
 
-    const name = document.createElement("div");
-    name.className = "row-name";
-    const swatch = document.createElement("span");
-    swatch.className = "swatch";
-    const kind = document.createElement("span");
-    kind.className = "row-kind";
-    kind.textContent = child.type === "dir" ? "DIR" : "FILE";
-    const label = document.createElement("span");
-    label.textContent = child.name;
-    name.append(swatch, kind, label);
-
-    const size = document.createElement("div");
-    size.className = "row-size";
-    size.textContent = formatBytes(child.size);
-
-    const items = document.createElement("div");
-    items.className = "row-count";
-    items.textContent = formatCount(child.items);
-
-    const files = document.createElement("div");
-    files.className = "row-count";
-    files.textContent = formatCount(child.files);
-
-    const modified = document.createElement("div");
-    modified.className = "row-modified";
-    modified.textContent = formatListModifiedTime(child.mtime);
-    modified.title = formatModifiedTime(child.mtime) || "Modified time unavailable";
-
-    const percent = document.createElement("div");
-    percent.className = "row-pct";
-    percent.textContent = pct(child.size, total);
-
-    row.append(name, items, files, size, modified, percent);
-    el.tree.appendChild(row);
-  }});
+  const body = document.createElement("div");
+  body.className = "tree-body";
+  body.style.height = `${{children.length * TREE_ROW_HEIGHT}}px`;
+  el.tree.appendChild(body);
+  treeView.node = state.current;
+  treeView.children = children;
+  treeView.total = total;
+  treeView.body = body;
+  renderVisibleTreeRows(true);
 }}
 
 function treemapItems(node) {{
@@ -3647,6 +4030,8 @@ function showLoadError(error) {{
 
 async function initReport() {{
   setTheme(document.documentElement.dataset.theme, false);
+  state.visibleColumns = readStoredTreeColumns();
+  applyTreeColumnLayout();
   syncMainPaneSize();
 
   try {{
@@ -3681,6 +4066,15 @@ el.topFilesLimit.addEventListener("change", event => {{
   renderHomePanel();
   setSelected(state.selected);
 }});
+el.tree.addEventListener("scroll", () => renderVisibleTreeRows(), {{ passive: true }});
+document.addEventListener("click", event => {{
+  if (
+    event.target &&
+    typeof event.target.closest === "function" &&
+    (event.target.closest(".tree-columns-menu") || event.target.closest(".tree-columns-btn"))
+  ) return;
+  closeTreeColumnsMenu();
+}});
 el.sidebar.addEventListener("wheel", event => {{
   if (event.target && event.target.closest(".tree")) return;
   if (!event.deltaY && !event.deltaX) return;
@@ -3692,6 +4086,7 @@ window.addEventListener("resize", () => {{
   syncMainPaneSize();
   if (!DATA) return;
   if (state.current === DATA) syncHomePaneSize();
+  renderVisibleTreeRows();
   renderTreemap();
 }});
 window.addEventListener("popstate", applyLocationHash);
@@ -3707,15 +4102,34 @@ function isTextEditingTarget(target) {{
 }}
 
 function scrollTreeSelectionIntoView(node) {{
+  if (!node) return;
   const row = document.querySelector(`.tree .row[data-id="${{node.id}}"]`);
   if (row && typeof row.scrollIntoView === "function") {{
     row.scrollIntoView({{ block: "nearest" }});
+    return;
   }}
+
+  const children = currentTreeChildren();
+  const index = children.findIndex(child => child.id === node.id);
+  if (index < 0) return;
+
+  const header = el.tree.querySelector(".tree-header");
+  const headerHeight = header ? header.offsetHeight : 0;
+  const rowTop = headerHeight + index * TREE_ROW_HEIGHT;
+  const rowBottom = rowTop + TREE_ROW_HEIGHT;
+  const visibleTop = el.tree.scrollTop + headerHeight;
+  const visibleBottom = el.tree.scrollTop + el.tree.clientHeight;
+  if (rowTop < visibleTop) {{
+    el.tree.scrollTop = Math.max(0, rowTop - headerHeight);
+  }} else if (rowBottom > visibleBottom) {{
+    el.tree.scrollTop = rowBottom - el.tree.clientHeight;
+  }}
+  renderVisibleTreeRows();
 }}
 
 function setListSelectionByIndex(index) {{
   if (!state.current) return;
-  const children = sortedChildren(state.current);
+  const children = currentTreeChildren();
   if (!children.length) return;
   const clamped = Math.max(0, Math.min(children.length - 1, index));
   const node = children[clamped];
@@ -3725,7 +4139,7 @@ function setListSelectionByIndex(index) {{
 
 function moveListSelection(delta) {{
   if (!state.current) return;
-  const children = sortedChildren(state.current);
+  const children = currentTreeChildren();
   if (!children.length) return;
   let index = children.findIndex(child => state.selected && child.id === state.selected.id);
   if (index < 0) {{
@@ -3736,6 +4150,13 @@ function moveListSelection(delta) {{
   setListSelectionByIndex(index);
 }}
 
+function treePageRowCount() {{
+  const header = el.tree.querySelector(".tree-header");
+  const headerHeight = header ? header.offsetHeight : 0;
+  const availableHeight = Math.max(TREE_ROW_HEIGHT, el.tree.clientHeight - headerHeight);
+  return Math.max(1, Math.floor(availableHeight / TREE_ROW_HEIGHT));
+}}
+
 function openSelectedDirectory() {{
   if (state.selected && state.selected.type === "dir") {{
     setCurrent(state.selected);
@@ -3743,6 +4164,7 @@ function openSelectedDirectory() {{
 }}
 
 function handleListKey(event) {{
+  if (handleSortShortcut(event)) return true;
   if (event.key === "ArrowDown") {{
     event.preventDefault();
     moveListSelection(1);
@@ -3753,6 +4175,16 @@ function handleListKey(event) {{
     moveListSelection(-1);
     return true;
   }}
+  if (event.key === "PageDown") {{
+    event.preventDefault();
+    moveListSelection(treePageRowCount());
+    return true;
+  }}
+  if (event.key === "PageUp") {{
+    event.preventDefault();
+    moveListSelection(-treePageRowCount());
+    return true;
+  }}
   if (event.key === "Home") {{
     event.preventDefault();
     setListSelectionByIndex(0);
@@ -3760,7 +4192,7 @@ function handleListKey(event) {{
   }}
   if (event.key === "End") {{
     event.preventDefault();
-    setListSelectionByIndex(sortedChildren(state.current).length - 1);
+    setListSelectionByIndex(currentTreeChildren().length - 1);
     return true;
   }}
   if (event.key === "Enter" || event.key === "ArrowRight") {{
@@ -3778,8 +4210,17 @@ document.addEventListener("keydown", event => {{
     closeHelpPage();
     return;
   }}
+  if (event.key === "Escape" && closeTreeColumnsMenu(true)) {{
+    event.preventDefault();
+    return;
+  }}
   if (!el.helpPage.hidden) return;
   if (isTextEditingTarget(event.target)) return;
+  if (event.key === "?" && !event.ctrlKey && !event.altKey && !event.metaKey) {{
+    event.preventDefault();
+    openHelpPage();
+    return;
+  }}
   if (!DATA) return;
   if (event.key === "Backspace" || event.key === "ArrowLeft") {{
     event.preventDefault();
@@ -3794,7 +4235,7 @@ initReport();
 </body>
 </html>
 """
-    return optimize_report_html(report)
+    return fill_report_size(optimize_report_html(report))
 
 
 if __name__ == "__main__":
