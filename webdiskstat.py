@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Convert JSON exported by `gdu -o-` into a self-contained WinDirStat-like HTML
-report.
+Convert JSON exported by `gdu -o-` or `ncdu -o-` into a self-contained
+WinDirStat-like HTML report.
 
 Examples:
   gdu -o- /home | ./webdiskstat.py -o report.html
+  ncdu -o- /home | ./webdiskstat.py --input-type ncdu -o report.html
   zcat report.json.gz | ./webdiskstat.py -o report.html
 """
 
@@ -14,17 +15,22 @@ import argparse
 import base64
 from datetime import datetime
 import gzip
+import hashlib
 import html
 import json
 import mimetypes
 import posixpath
 import re
+import secrets
 import sys
 from pathlib import Path
 from typing import Any
 
 
 APP_TITLE = "webdiskstat"
+ENCRYPTION_AAD = b"webdiskstat-report-data-v1"
+ENCRYPTION_ALGORITHM = "ChaCha20-Poly1305"
+PBKDF2_ITERATIONS = 310_000
 
 CHILD_KEYS = (
     "items",
@@ -74,11 +80,12 @@ class NoInputError(ValueError):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Build a static WinDirStat-like web report from gdu JSON.",
+        description="Build a static WinDirStat-like web report from gdu or ncdu JSON.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
             "  gdu -o- / | %(prog)s -o webdiskstat.html\n"
+            "  ncdu -o- / | %(prog)s --input-type ncdu -o webdiskstat.html\n"
             "  zcat report.json.gz | %(prog)s -o report.html\n"
         ),
     )
@@ -86,7 +93,13 @@ def main() -> int:
         "input",
         nargs="?",
         default="-",
-        help="gdu JSON file, .gz file, or '-' for stdin. Defaults to stdin.",
+        help="Input JSON file, .gz file, or '-' for stdin. Defaults to stdin.",
+    )
+    parser.add_argument(
+        "--input-type",
+        choices=("gdu", "ncdu"),
+        default="gdu",
+        help="Input JSON format. Defaults to gdu.",
     )
     parser.add_argument(
         "-o",
@@ -94,7 +107,15 @@ def main() -> int:
         default="webdiskstat.html",
         help="HTML output path, or '-' for stdout. Defaults to webdiskstat.html.",
     )
+    parser.add_argument(
+        "--password",
+        default=None,
+        help="Encrypt embedded report data with this password. Defaults to unencrypted.",
+    )
     args = parser.parse_args()
+
+    if args.password == "":
+        parser.error("--password must not be empty")
 
     if args.input == "-" and sys.stdin.isatty():
         print_no_input_help(parser)
@@ -102,8 +123,8 @@ def main() -> int:
 
     try:
         raw = read_json(args.input)
-        root = normalize_export(raw)
-        report = render_report(root)
+        root = normalize_export(raw, args.input_type)
+        report = render_report(root, args.password)
     except NoInputError:
         print_no_input_help(parser)
         return 2
@@ -141,7 +162,7 @@ def read_json(source: str) -> Any:
 
 
 def print_no_input_help(parser: argparse.ArgumentParser) -> None:
-    print("No input provided. Pipe gdu JSON into the script or pass a saved JSON file.", file=sys.stderr)
+    print("No input provided. Pipe gdu or ncdu JSON into the script or pass a saved JSON file.", file=sys.stderr)
     print(file=sys.stderr)
     parser.print_help(file=sys.stderr)
 
@@ -157,17 +178,24 @@ def write_report(report: str, output: str) -> Path:
     return path
 
 
-def normalize_export(raw: Any) -> dict[str, Any]:
-    if is_gdu_export(raw):
+def normalize_export(raw: Any, input_type: str = "gdu") -> dict[str, Any]:
+    if input_type not in ("gdu", "ncdu"):
+        raise ValueError(f"unsupported input type: {input_type}")
+
+    if is_export_array(raw):
+        if input_type == "ncdu":
+            validate_ncdu_export(raw)
         raw = raw[3]
+    elif input_type == "ncdu":
+        raise ValueError("expected ncdu JSON export array from `ncdu -o-`")
 
     if isinstance(raw, list):
         if is_sequence_node(raw):
-            root = normalize_node(raw, "root", "")
+            root = normalize_node(raw, "root", "", input_type)
             add_totals(root)
             return root
 
-        children = [normalize_node(item, f"item-{index}", "") for index, item in enumerate(raw)]
+        children = [normalize_node(item, f"item-{index}", "", input_type) for index, item in enumerate(raw)]
         root = {
             "name": "root",
             "path": "root",
@@ -181,14 +209,14 @@ def normalize_export(raw: Any) -> dict[str, Any]:
 
     if isinstance(raw, dict):
         node = unwrap_possible_root(raw)
-        root = normalize_node(node, "root", "")
+        root = normalize_node(node, "root", "", input_type)
         add_totals(root)
         return root
 
     raise ValueError("expected a JSON object or array")
 
 
-def is_gdu_export(raw: Any) -> bool:
+def is_export_array(raw: Any) -> bool:
     return (
         isinstance(raw, list)
         and len(raw) >= 4
@@ -197,6 +225,15 @@ def is_gdu_export(raw: Any) -> bool:
         and isinstance(raw[2], dict)
         and isinstance(raw[3], (dict, list))
     )
+
+
+def validate_ncdu_export(raw: list[Any]) -> None:
+    if raw[0] != 1:
+        raise ValueError(f"unsupported ncdu export major version: {raw[0]}")
+    if not isinstance(raw[1], int):
+        raise ValueError("invalid ncdu export minor version")
+    if not isinstance(raw[3], list) or not is_sequence_node(raw[3]):
+        raise ValueError("invalid ncdu export directory tree")
 
 
 def unwrap_possible_root(raw: dict[str, Any]) -> Any:
@@ -223,16 +260,21 @@ def is_sequence_node(raw: Any) -> bool:
     return isinstance(raw, list) and bool(raw) and isinstance(raw[0], dict) and looks_like_node(raw[0])
 
 
-def normalize_node(raw: Any, fallback_name: str, parent_path: str) -> dict[str, Any]:
+def normalize_node(
+    raw: Any,
+    fallback_name: str,
+    parent_path: str,
+    input_type: str = "gdu",
+) -> dict[str, Any]:
     if isinstance(raw, dict):
-        mapped = normalize_mapping_node(raw, fallback_name, parent_path)
+        mapped = normalize_mapping_node(raw, fallback_name, parent_path, input_type)
         return mapped
 
     if isinstance(raw, list):
         if is_sequence_node(raw):
-            return normalize_sequence_node(raw, fallback_name, parent_path)
+            return normalize_sequence_node(raw, fallback_name, parent_path, input_type)
 
-        children = [normalize_node(item, fallback_name, parent_path) for item in raw]
+        children = [normalize_node(item, fallback_name, parent_path, input_type) for item in raw]
         return {
             "name": fallback_name,
             "path": make_path(parent_path, fallback_name),
@@ -253,7 +295,12 @@ def normalize_node(raw: Any, fallback_name: str, parent_path: str) -> dict[str, 
     }
 
 
-def normalize_sequence_node(raw: list[Any], fallback_name: str, parent_path: str) -> dict[str, Any]:
+def normalize_sequence_node(
+    raw: list[Any],
+    fallback_name: str,
+    parent_path: str,
+    input_type: str = "gdu",
+) -> dict[str, Any]:
     info = raw[0]
     name_value = first_string(info, NAME_KEYS)
     path_value = first_string(info, PATH_KEYS)
@@ -264,12 +311,15 @@ def normalize_sequence_node(raw: list[Any], fallback_name: str, parent_path: str
     path = path_value or make_path(parent_path, name)
 
     children = [
-        normalize_node(child, f"item-{index}", path)
+        normalize_node(child, f"item-{index}", path, input_type)
         for index, child in enumerate(raw[1:])
     ]
     size = first_number(info, SIZE_KEYS)
-    if size <= 0:
-        size = sum(child["size"] for child in children)
+    child_size = sum(child["size"] for child in children)
+    if input_type == "ncdu" and children:
+        size += child_size
+    elif size <= 0:
+        size = child_size
 
     node = {
         "name": name,
@@ -291,7 +341,12 @@ def normalize_sequence_node(raw: list[Any], fallback_name: str, parent_path: str
     return node
 
 
-def normalize_mapping_node(raw: dict[str, Any], fallback_name: str, parent_path: str) -> dict[str, Any]:
+def normalize_mapping_node(
+    raw: dict[str, Any],
+    fallback_name: str,
+    parent_path: str,
+    input_type: str = "gdu",
+) -> dict[str, Any]:
     children_raw = extract_children(raw)
     path_value = first_string(raw, PATH_KEYS)
     name_value = first_string(raw, NAME_KEYS)
@@ -308,12 +363,12 @@ def normalize_mapping_node(raw: dict[str, Any], fallback_name: str, parent_path:
     children = []
     if isinstance(children_raw, dict):
         for child_name, child_value in children_raw.items():
-            children.append(normalize_node(child_value, str(child_name), path))
+            children.append(normalize_node(child_value, str(child_name), path, input_type))
     elif isinstance(children_raw, list):
         for index, child in enumerate(children_raw):
-            children.append(normalize_node(child, f"item-{index}", path))
+            children.append(normalize_node(child, f"item-{index}", path, input_type))
     elif children_raw is None:
-        children = extract_mapping_children(raw, path)
+        children = extract_mapping_children(raw, path, input_type)
 
     size = first_number(raw, SIZE_KEYS)
     if size <= 0 and children:
@@ -361,14 +416,18 @@ def extract_children(raw: dict[str, Any]) -> Any | None:
     return None
 
 
-def extract_mapping_children(raw: dict[str, Any], parent_path: str) -> list[dict[str, Any]]:
+def extract_mapping_children(
+    raw: dict[str, Any],
+    parent_path: str,
+    input_type: str = "gdu",
+) -> list[dict[str, Any]]:
     if looks_like_node(raw):
         return []
 
     children = []
     for key, value in raw.items():
         if isinstance(value, (dict, list, int, float)):
-            children.append(normalize_node(value, str(key), parent_path))
+            children.append(normalize_node(value, str(key), parent_path, input_type))
     return children
 
 
@@ -503,10 +562,162 @@ def script_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
-def compressed_script_json(value: Any) -> str:
+def compressed_script_json_bytes(value: Any) -> bytes:
     raw = script_json(value).encode("utf-8")
-    compressed = gzip.compress(raw, compresslevel=9, mtime=0)
-    return json.dumps(base64.b64encode(compressed).decode("ascii"), separators=(",", ":"))
+    return gzip.compress(raw, compresslevel=9, mtime=0)
+
+
+def report_data_payload(root: dict[str, Any], password: str | None) -> str:
+    compressed = compressed_script_json_bytes(serialize_report_data(root))
+    if password is None:
+        return script_json({
+            "encrypted": False,
+            "payload": base64.b64encode(compressed).decode("ascii"),
+        })
+
+    encrypted = encrypt_report_data(compressed, password)
+    return script_json(encrypted)
+
+
+def encrypt_report_data(plaintext: bytes, password: str) -> dict[str, Any]:
+    salt = secrets.token_bytes(16)
+    nonce = secrets.token_bytes(12)
+    key = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        PBKDF2_ITERATIONS,
+        dklen=32,
+    )
+    ciphertext, tag = chacha20_poly1305_encrypt(key, nonce, plaintext, ENCRYPTION_AAD)
+    return {
+        "encrypted": True,
+        "algorithm": ENCRYPTION_ALGORITHM,
+        "kdf": "PBKDF2-SHA256",
+        "iterations": PBKDF2_ITERATIONS,
+        "salt": base64.b64encode(salt).decode("ascii"),
+        "nonce": base64.b64encode(nonce).decode("ascii"),
+        "aad": ENCRYPTION_AAD.decode("ascii"),
+        "payload": base64.b64encode(ciphertext).decode("ascii"),
+        "tag": base64.b64encode(tag).decode("ascii"),
+    }
+
+
+def chacha20_poly1305_encrypt(
+    key: bytes,
+    nonce: bytes,
+    plaintext: bytes,
+    aad: bytes,
+) -> tuple[bytes, bytes]:
+    if len(key) != 32:
+        raise ValueError("encryption key must be 32 bytes")
+    if len(nonce) != 12:
+        raise ValueError("encryption nonce must be 12 bytes")
+
+    poly_key = chacha20_block(key, nonce, 0)[:32]
+    ciphertext = chacha20_xor(key, nonce, 1, plaintext)
+    tag = poly1305_mac(poly1305_aead_data(aad, ciphertext), poly_key)
+    return ciphertext, tag
+
+
+def chacha20_xor(key: bytes, nonce: bytes, counter: int, data: bytes) -> bytes:
+    output = bytearray(len(data))
+    for offset in range(0, len(data), 64):
+        block = chacha20_block(key, nonce, counter)
+        chunk = data[offset:offset + 64]
+        for index, value in enumerate(chunk):
+            output[offset + index] = value ^ block[index]
+        counter = (counter + 1) & 0xFFFFFFFF
+        if counter == 0 and offset + 64 < len(data):
+            raise ValueError("report data is too large to encrypt with one nonce")
+    return bytes(output)
+
+
+def chacha20_block(key: bytes, nonce: bytes, counter: int) -> bytes:
+    def word(data: bytes, offset: int) -> int:
+        return int.from_bytes(data[offset:offset + 4], "little")
+
+    state = [
+        0x61707865,
+        0x3320646E,
+        0x79622D32,
+        0x6B206574,
+        *[word(key, offset) for offset in range(0, 32, 4)],
+        counter & 0xFFFFFFFF,
+        *[word(nonce, offset) for offset in range(0, 12, 4)],
+    ]
+    working = state[:]
+
+    for _ in range(10):
+        quarter_round(working, 0, 4, 8, 12)
+        quarter_round(working, 1, 5, 9, 13)
+        quarter_round(working, 2, 6, 10, 14)
+        quarter_round(working, 3, 7, 11, 15)
+        quarter_round(working, 0, 5, 10, 15)
+        quarter_round(working, 1, 6, 11, 12)
+        quarter_round(working, 2, 7, 8, 13)
+        quarter_round(working, 3, 4, 9, 14)
+
+    return b"".join(
+        ((working[index] + state[index]) & 0xFFFFFFFF).to_bytes(4, "little")
+        for index in range(16)
+    )
+
+
+def quarter_round(state: list[int], a: int, b: int, c: int, d: int) -> None:
+    state[a] = (state[a] + state[b]) & 0xFFFFFFFF
+    state[d] = rotate_left(state[d] ^ state[a], 16)
+    state[c] = (state[c] + state[d]) & 0xFFFFFFFF
+    state[b] = rotate_left(state[b] ^ state[c], 12)
+    state[a] = (state[a] + state[b]) & 0xFFFFFFFF
+    state[d] = rotate_left(state[d] ^ state[a], 8)
+    state[c] = (state[c] + state[d]) & 0xFFFFFFFF
+    state[b] = rotate_left(state[b] ^ state[c], 7)
+
+
+def rotate_left(value: int, bits: int) -> int:
+    return ((value << bits) & 0xFFFFFFFF) | (value >> (32 - bits))
+
+
+def poly1305_aead_data(aad: bytes, ciphertext: bytes) -> bytes:
+    def padding(length: int) -> bytes:
+        return b"\x00" * ((16 - length % 16) % 16)
+
+    return b"".join((
+        aad,
+        padding(len(aad)),
+        ciphertext,
+        padding(len(ciphertext)),
+        len(aad).to_bytes(8, "little"),
+        len(ciphertext).to_bytes(8, "little"),
+    ))
+
+
+def poly1305_mac(message: bytes, key: bytes) -> bytes:
+    if len(key) != 32:
+        raise ValueError("Poly1305 key must be 32 bytes")
+
+    r = bytearray(key[:16])
+    r[3] &= 15
+    r[7] &= 15
+    r[11] &= 15
+    r[15] &= 15
+    r[4] &= 252
+    r[8] &= 252
+    r[12] &= 252
+
+    r_value = int.from_bytes(r, "little")
+    s_value = int.from_bytes(key[16:], "little")
+    modulus = (1 << 130) - 5
+    accumulator = 0
+
+    for offset in range(0, len(message), 16):
+        block = message[offset:offset + 16]
+        number = int.from_bytes(block + b"\x01", "little")
+        accumulator = ((accumulator + number) * r_value) % modulus
+
+    tag = (accumulator + s_value) % (1 << 128)
+    return tag.to_bytes(16, "little")
 
 
 def minify_css(css: str) -> str:
@@ -544,12 +755,35 @@ def optimize_report_html(report: str) -> str:
     return report + "\n"
 
 
-def render_report(root: dict[str, Any]) -> str:
-    data = compressed_script_json(serialize_report_data(root))
+def render_report(root: dict[str, Any], password: str | None = None) -> str:
+    data = report_data_payload(root, password)
+    encrypted_report = password is not None
     generated_at = datetime.now().astimezone()
     generated_iso = generated_at.isoformat(timespec="seconds")
     generated_display = generated_at.strftime("%Y-%m-%d %H:%M:%S %Z")
     escaped_title = html.escape(f"{APP_TITLE} - Generated {generated_display}")
+    security_class = "encrypted" if encrypted_report else "plain"
+    security_label = "Data encrypted" if encrypted_report else "Data not encrypted"
+    security_title = (
+        "Embedded scan data is encrypted and requires the report password."
+        if encrypted_report
+        else "Embedded scan data is not encrypted."
+    )
+    security_icon = (
+        '<path d="M7 11V8a5 5 0 0 1 10 0v3"/>'
+        if encrypted_report
+        else '<path d="M8 11V8a4 4 0 0 1 7.6-1.8"/>'
+    )
+    footer_status = (
+        f'<span class="report-security {security_class}" title="{html.escape(security_title)}">'
+        '<svg class="security-icon" viewBox="0 0 24 24" aria-hidden="true">'
+        f'{security_icon}'
+        '<rect x="5" y="11" width="14" height="9" rx="2"/>'
+        '<path d="M12 15v2"/>'
+        '</svg>'
+        f'<span>{html.escape(security_label)}</span>'
+        '</span>'
+    )
 
     report = f"""<!doctype html>
 <html lang="en">
@@ -730,6 +964,41 @@ kbd {{
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}}
+.report-security {{
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 78%, black 22%);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}}
+.report-security.encrypted {{
+  border-color: color-mix(in srgb, var(--accent-2) 60%, var(--line));
+  background: color-mix(in srgb, var(--accent-2) 14%, transparent);
+  color: #99f6e4;
+}}
+.report-security.plain {{
+  border-color: color-mix(in srgb, var(--warn) 50%, var(--line));
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  color: #fbbf24;
+}}
+.security-icon {{
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }}
 .tools {{
   display: flex;
@@ -1312,46 +1581,6 @@ kbd {{
   font-size: 12px;
   font-weight: 650;
 }}
-.top-file-pager {{
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}}
-.pager-btn {{
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--ink);
-  display: inline-grid;
-  place-items: center;
-  cursor: pointer;
-}}
-.pager-btn:hover:not(:disabled) {{
-  border-color: #64748b;
-  background: #232a33;
-}}
-.pager-btn:disabled {{
-  opacity: 0.42;
-  cursor: default;
-}}
-.pager-icon {{
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}}
-.top-file-page {{
-  min-width: 46px;
-  color: var(--muted);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-size: 11px;
-}}
 .top-files-body {{
   min-height: 0;
   overflow: auto;
@@ -1559,7 +1788,8 @@ kbd {{
   min-height: 30px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   padding: 6px 14px;
   border-top: 1px solid var(--line);
   background: #181d23;
@@ -1624,9 +1854,6 @@ html[data-theme="light"] .sidebar {{
 }}
 html[data-theme="light"] .icon-btn:hover,
 html[data-theme="light"] .select:hover {{
-  background: #eaf2fb;
-}}
-html[data-theme="light"] .pager-btn:hover:not(:disabled) {{
   background: #eaf2fb;
 }}
 html[data-theme="light"] .tree-header,
@@ -1701,6 +1928,14 @@ html[data-theme="light"] .shortcut-list div {{
 }}
 html[data-theme="light"] .footer {{
   background: #f8fafc;
+}}
+html[data-theme="light"] .report-security.encrypted {{
+  color: #0f766e;
+  background: #ccfbf1;
+}}
+html[data-theme="light"] .report-security.plain {{
+  color: #92400e;
+  background: #fef3c7;
 }}
 @media (max-width: 820px) {{
   body {{ overflow: auto; }}
@@ -1788,15 +2023,6 @@ html[data-theme="light"] .footer {{
               <option value="40">40</option>
               <option value="50">50</option>
             </select>
-            <div class="top-file-pager" aria-label="Top files pages">
-              <button id="topFilesPrev" class="pager-btn" type="button" title="Previous page" aria-label="Previous top files page">
-                <svg class="pager-icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
-              </button>
-              <span id="topFilesPage" class="top-file-page">1 / 1</span>
-              <button id="topFilesNext" class="pager-btn" type="button" title="Next page" aria-label="Next top files page">
-                <svg class="pager-icon" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
-            </div>
           </div>
           <span class="top-file-size">Size</span>
         </div>
@@ -1812,6 +2038,7 @@ html[data-theme="light"] .footer {{
     </section>
   </main>
   <footer class="footer">
+    {footer_status}
     <time class="generated" datetime="{html.escape(generated_iso)}">Generated {html.escape(generated_display)}</time>
   </footer>
 </div>
@@ -1827,7 +2054,7 @@ html[data-theme="light"] .footer {{
       <div class="help-grid">
         <section class="help-section">
           <h3>What This Report Shows</h3>
-          <p>webdiskstat turns a <code>gdu</code> scan into a static disk usage report. The left panel lists entries in the current directory. The treemap shows the same directory visually by size.</p>
+          <p>webdiskstat turns a <code>gdu</code> or <code>ncdu</code> scan into a static disk usage report. The left panel lists entries in the current directory. The treemap shows the same directory visually by size.</p>
         </section>
         <section class="help-section">
           <h3>Directory List</h3>
@@ -1884,7 +2111,7 @@ html[data-theme="light"] .footer {{
 </section>
 <div id="tooltip" class="tooltip"></div>
 <script>
-const REPORT_DATA_GZIP = {data};
+const REPORT_DATA_PAYLOAD = {data};
 let DATA = null;
 
 function unpackReportData(payload) {{
@@ -1926,16 +2153,395 @@ function unpackReportData(payload) {{
   return decodeNode(packedRoot, "");
 }}
 
-async function loadCompressedReportData(payload) {{
+function bytesFromBase64(value) {{
+  const binary = atob(value || "");
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}}
+
+function utf8Bytes(value) {{
+  return new TextEncoder().encode(value);
+}}
+
+async function loadCompressedReportData(bytes) {{
   if (typeof DecompressionStream !== "function") {{
     throw new Error("This browser cannot decompress embedded report data. Use a current Chrome, Edge, Firefox, or Safari release.");
   }}
-  const binary = atob(payload);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
   const text = await new Response(stream).text();
   return unpackReportData(JSON.parse(text));
+}}
+
+async function loadReportData(payload) {{
+  const compressed = payload && payload.encrypted
+    ? await decryptReportPayload(payload)
+    : bytesFromBase64(payload && payload.payload);
+  return loadCompressedReportData(compressed);
+}}
+
+async function decryptReportPayload(payload) {{
+  if (payload.algorithm !== "ChaCha20-Poly1305") {{
+    throw new Error(`Unsupported encrypted report algorithm: ${{payload.algorithm || "unknown"}}`);
+  }}
+  if (payload.kdf !== "PBKDF2-SHA256") {{
+    throw new Error(`Unsupported encrypted report KDF: ${{payload.kdf || "unknown"}}`);
+  }}
+  const iterations = Number(payload.iterations);
+  if (!Number.isInteger(iterations) || iterations < 1 || iterations > 5000000) {{
+    throw new Error("Encrypted report KDF parameters are invalid.");
+  }}
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {{
+    const promptText = attempt
+      ? "Incorrect password. Try again:"
+      : "Enter password to open this encrypted report:";
+    const password = window.prompt(promptText);
+    if (password === null) throw new Error("Password required to open encrypted report.");
+
+    try {{
+      const key = await deriveReportKey(password, bytesFromBase64(payload.salt), iterations);
+      return chacha20Poly1305Decrypt(
+        key,
+        bytesFromBase64(payload.nonce),
+        bytesFromBase64(payload.payload),
+        bytesFromBase64(payload.tag),
+        utf8Bytes(payload.aad || "webdiskstat-report-data-v1")
+      );
+    }} catch (error) {{
+      lastError = error;
+    }}
+  }}
+
+  throw new Error(lastError && lastError.message ? "Unable to decrypt report data. Check the password." : "Unable to decrypt report data.");
+}}
+
+async function deriveReportKey(password, salt, iterations) {{
+  const passwordBytes = utf8Bytes(password);
+  if (globalThis.crypto && crypto.subtle) {{
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      passwordBytes,
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
+    const bits = await crypto.subtle.deriveBits(
+      {{
+        name: "PBKDF2",
+        hash: "SHA-256",
+        salt,
+        iterations
+      }},
+      keyMaterial,
+      256
+    );
+    return new Uint8Array(bits);
+  }}
+
+  return pbkdf2Sha256(passwordBytes, salt, iterations, 32);
+}}
+
+function pbkdf2Sha256(password, salt, iterations, length) {{
+  const hashLength = 32;
+  const blockCount = Math.ceil(length / hashLength);
+  const output = new Uint8Array(blockCount * hashLength);
+
+  for (let block = 1; block <= blockCount; block++) {{
+    const saltBlock = new Uint8Array(salt.length + 4);
+    saltBlock.set(salt);
+    saltBlock[salt.length] = (block >>> 24) & 255;
+    saltBlock[salt.length + 1] = (block >>> 16) & 255;
+    saltBlock[salt.length + 2] = (block >>> 8) & 255;
+    saltBlock[salt.length + 3] = block & 255;
+
+    let u = hmacSha256(password, saltBlock);
+    const t = new Uint8Array(u);
+    for (let iteration = 1; iteration < iterations; iteration++) {{
+      u = hmacSha256(password, u);
+      for (let index = 0; index < hashLength; index++) t[index] ^= u[index];
+    }}
+    output.set(t, (block - 1) * hashLength);
+  }}
+
+  return output.slice(0, length);
+}}
+
+function hmacSha256(key, message) {{
+  let normalizedKey = key;
+  if (normalizedKey.length > 64) normalizedKey = sha256(normalizedKey);
+
+  const inner = new Uint8Array(64 + message.length);
+  const outer = new Uint8Array(96);
+  for (let index = 0; index < 64; index++) {{
+    const value = index < normalizedKey.length ? normalizedKey[index] : 0;
+    inner[index] = value ^ 0x36;
+    outer[index] = value ^ 0x5c;
+  }}
+  inner.set(message, 64);
+  outer.set(sha256(inner), 64);
+  return sha256(outer);
+}}
+
+const SHA256_K = new Uint32Array([
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+  0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+  0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+  0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+  0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+  0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+  0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+  0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+  0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+]);
+
+function sha256(message) {{
+  const bitLength = BigInt(message.length) * 8n;
+  const paddedLength = Math.ceil((message.length + 9) / 64) * 64;
+  const padded = new Uint8Array(paddedLength);
+  padded.set(message);
+  padded[message.length] = 0x80;
+  for (let index = 0; index < 8; index++) {{
+    padded[paddedLength - 1 - index] = Number((bitLength >> BigInt(index * 8)) & 255n);
+  }}
+
+  let h0 = 0x6a09e667;
+  let h1 = 0xbb67ae85;
+  let h2 = 0x3c6ef372;
+  let h3 = 0xa54ff53a;
+  let h4 = 0x510e527f;
+  let h5 = 0x9b05688c;
+  let h6 = 0x1f83d9ab;
+  let h7 = 0x5be0cd19;
+  const words = new Uint32Array(64);
+
+  for (let offset = 0; offset < padded.length; offset += 64) {{
+    for (let index = 0; index < 16; index++) {{
+      words[index] = readU32BE(padded, offset + index * 4);
+    }}
+    for (let index = 16; index < 64; index++) {{
+      const s0 = rotateRight(words[index - 15], 7) ^ rotateRight(words[index - 15], 18) ^ (words[index - 15] >>> 3);
+      const s1 = rotateRight(words[index - 2], 17) ^ rotateRight(words[index - 2], 19) ^ (words[index - 2] >>> 10);
+      words[index] = (words[index - 16] + s0 + words[index - 7] + s1) >>> 0;
+    }}
+
+    let a = h0;
+    let b = h1;
+    let c = h2;
+    let d = h3;
+    let e = h4;
+    let f = h5;
+    let g = h6;
+    let h = h7;
+
+    for (let index = 0; index < 64; index++) {{
+      const s1 = rotateRight(e, 6) ^ rotateRight(e, 11) ^ rotateRight(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + s1 + ch + SHA256_K[index] + words[index]) >>> 0;
+      const s0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const temp2 = (s0 + maj) >>> 0;
+      h = g;
+      g = f;
+      f = e;
+      e = (d + temp1) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (temp1 + temp2) >>> 0;
+    }}
+
+    h0 = (h0 + a) >>> 0;
+    h1 = (h1 + b) >>> 0;
+    h2 = (h2 + c) >>> 0;
+    h3 = (h3 + d) >>> 0;
+    h4 = (h4 + e) >>> 0;
+    h5 = (h5 + f) >>> 0;
+    h6 = (h6 + g) >>> 0;
+    h7 = (h7 + h) >>> 0;
+  }}
+
+  const digest = new Uint8Array(32);
+  [h0, h1, h2, h3, h4, h5, h6, h7].forEach((value, index) => writeU32BE(digest, index * 4, value));
+  return digest;
+}}
+
+function rotateRight(value, bits) {{
+  return ((value >>> bits) | (value << (32 - bits))) >>> 0;
+}}
+
+function readU32BE(bytes, offset) {{
+  return ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+}}
+
+function writeU32BE(bytes, offset, value) {{
+  bytes[offset] = (value >>> 24) & 255;
+  bytes[offset + 1] = (value >>> 16) & 255;
+  bytes[offset + 2] = (value >>> 8) & 255;
+  bytes[offset + 3] = value & 255;
+}}
+
+function chacha20Poly1305Decrypt(key, nonce, ciphertext, tag, aad) {{
+  if (key.length !== 32 || nonce.length !== 12 || tag.length !== 16) {{
+    throw new Error("Encrypted report payload is malformed.");
+  }}
+  const polyKey = chacha20Block(key, nonce, 0).slice(0, 32);
+  const expectedTag = poly1305Mac(poly1305AeadData(aad, ciphertext), polyKey);
+  if (!timingSafeEqual(tag, expectedTag)) {{
+    throw new Error("Decryption failed.");
+  }}
+  return chacha20Xor(key, nonce, 1, ciphertext);
+}}
+
+function chacha20Xor(key, nonce, counter, input) {{
+  const output = new Uint8Array(input.length);
+  for (let offset = 0; offset < input.length; offset += 64) {{
+    const block = chacha20Block(key, nonce, counter);
+    const length = Math.min(64, input.length - offset);
+    for (let index = 0; index < length; index++) {{
+      output[offset + index] = input[offset + index] ^ block[index];
+    }}
+    counter = (counter + 1) >>> 0;
+    if (counter === 0 && offset + 64 < input.length) {{
+      throw new Error("Encrypted report payload is too large.");
+    }}
+  }}
+  return output;
+}}
+
+function chacha20Block(key, nonce, counter) {{
+  const state = new Uint32Array(16);
+  state[0] = 0x61707865;
+  state[1] = 0x3320646e;
+  state[2] = 0x79622d32;
+  state[3] = 0x6b206574;
+  for (let index = 0; index < 8; index++) state[4 + index] = readU32(key, index * 4);
+  state[12] = counter >>> 0;
+  state[13] = readU32(nonce, 0);
+  state[14] = readU32(nonce, 4);
+  state[15] = readU32(nonce, 8);
+
+  const working = new Uint32Array(state);
+  for (let round = 0; round < 10; round++) {{
+    quarterRound(working, 0, 4, 8, 12);
+    quarterRound(working, 1, 5, 9, 13);
+    quarterRound(working, 2, 6, 10, 14);
+    quarterRound(working, 3, 7, 11, 15);
+    quarterRound(working, 0, 5, 10, 15);
+    quarterRound(working, 1, 6, 11, 12);
+    quarterRound(working, 2, 7, 8, 13);
+    quarterRound(working, 3, 4, 9, 14);
+  }}
+
+  const output = new Uint8Array(64);
+  for (let index = 0; index < 16; index++) {{
+    writeU32(output, index * 4, (working[index] + state[index]) >>> 0);
+  }}
+  return output;
+}}
+
+function quarterRound(state, a, b, c, d) {{
+  state[a] = (state[a] + state[b]) >>> 0;
+  state[d] = rotateLeft(state[d] ^ state[a], 16);
+  state[c] = (state[c] + state[d]) >>> 0;
+  state[b] = rotateLeft(state[b] ^ state[c], 12);
+  state[a] = (state[a] + state[b]) >>> 0;
+  state[d] = rotateLeft(state[d] ^ state[a], 8);
+  state[c] = (state[c] + state[d]) >>> 0;
+  state[b] = rotateLeft(state[b] ^ state[c], 7);
+}}
+
+function rotateLeft(value, bits) {{
+  return ((value << bits) | (value >>> (32 - bits))) >>> 0;
+}}
+
+function readU32(bytes, offset) {{
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}}
+
+function writeU32(bytes, offset, value) {{
+  bytes[offset] = value & 255;
+  bytes[offset + 1] = (value >>> 8) & 255;
+  bytes[offset + 2] = (value >>> 16) & 255;
+  bytes[offset + 3] = (value >>> 24) & 255;
+}}
+
+function poly1305AeadData(aad, ciphertext) {{
+  const aadPad = (16 - aad.length % 16) % 16;
+  const ciphertextPad = (16 - ciphertext.length % 16) % 16;
+  const data = new Uint8Array(aad.length + aadPad + ciphertext.length + ciphertextPad + 16);
+  let offset = 0;
+  data.set(aad, offset);
+  offset += aad.length + aadPad;
+  data.set(ciphertext, offset);
+  offset += ciphertext.length + ciphertextPad;
+  writeU64(data, offset, aad.length);
+  writeU64(data, offset + 8, ciphertext.length);
+  return data;
+}}
+
+function poly1305Mac(message, key) {{
+  if (key.length !== 32) throw new Error("Poly1305 key is malformed.");
+  const rBytes = key.slice(0, 16);
+  rBytes[3] &= 15;
+  rBytes[7] &= 15;
+  rBytes[11] &= 15;
+  rBytes[15] &= 15;
+  rBytes[4] &= 252;
+  rBytes[8] &= 252;
+  rBytes[12] &= 252;
+
+  const r = littleEndianToBigInt(rBytes);
+  const s = littleEndianToBigInt(key.slice(16, 32));
+  const modulus = (1n << 130n) - 5n;
+  let accumulator = 0n;
+
+  for (let offset = 0; offset < message.length; offset += 16) {{
+    const block = message.slice(offset, Math.min(offset + 16, message.length));
+    const n = littleEndianToBigInt(block) + (1n << BigInt(block.length * 8));
+    accumulator = ((accumulator + n) * r) % modulus;
+  }}
+
+  return bigIntTo16Bytes((accumulator + s) & ((1n << 128n) - 1n));
+}}
+
+function littleEndianToBigInt(bytes) {{
+  let value = 0n;
+  for (let index = bytes.length - 1; index >= 0; index--) {{
+    value = (value << 8n) + BigInt(bytes[index]);
+  }}
+  return value;
+}}
+
+function bigIntTo16Bytes(value) {{
+  const bytes = new Uint8Array(16);
+  for (let index = 0; index < 16; index++) {{
+    bytes[index] = Number((value >> BigInt(index * 8)) & 255n);
+  }}
+  return bytes;
+}}
+
+function writeU64(bytes, offset, value) {{
+  let remaining = BigInt(value);
+  for (let index = 0; index < 8; index++) {{
+    bytes[offset + index] = Number(remaining & 255n);
+    remaining >>= 8n;
+  }}
+}}
+
+function timingSafeEqual(left, right) {{
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let index = 0; index < left.length; index++) diff |= left[index] ^ right[index];
+  return diff === 0;
 }}
 
 const palette = [
@@ -1944,7 +2550,6 @@ const palette = [
   "#0e7490", "#9333ea", "#ca8a04", "#15803d", "#db2777", "#4338ca"
 ];
 const TREEMAP_MAX_ITEMS = 1500;
-const TOP_FILES_PAGE_SIZE = 10;
 const TOP_FILES_LIMITS = [10, 20, 30, 40, 50];
 const THEME_STORAGE_KEY = "webdiskstat-theme";
 const MAIN_PANE_STORAGE_KEY = "webdiskstat-sidebar-size";
@@ -1963,8 +2568,7 @@ const state = {{
   selected: null,
   sortKey: "size",
   sortDir: "desc",
-  topFilesLimit: 10,
-  topFilesPage: 0
+  topFilesLimit: 10
 }};
 
 const byId = new Map();
@@ -1992,9 +2596,6 @@ const el = {{
   topFiles: document.getElementById("topFiles"),
   topFilesTitle: document.getElementById("topFilesTitle"),
   topFilesLimit: document.getElementById("topFilesLimit"),
-  topFilesPrev: document.getElementById("topFilesPrev"),
-  topFilesNext: document.getElementById("topFilesNext"),
-  topFilesPage: document.getElementById("topFilesPage"),
   topFilesBody: document.getElementById("topFilesBody"),
   details: document.getElementById("details"),
   detailName: document.getElementById("detailName"),
@@ -2601,12 +3202,6 @@ function normalizeTopFilesLimit(value) {{
   return TOP_FILES_LIMITS.includes(numeric) ? numeric : TOP_FILES_LIMITS[0];
 }}
 
-function updateTopFilesPage(delta) {{
-  state.topFilesPage += delta;
-  renderHomePanel();
-  setSelected(state.selected);
-}}
-
 function isMainResizerVisible() {{
   return getComputedStyle(el.mainResizer).display !== "none";
 }}
@@ -2873,10 +3468,6 @@ function renderHomePanel() {{
   el.topFilesBody.textContent = "";
   el.topFilesBody.scrollTop = 0;
   if (!files.length) {{
-    state.topFilesPage = 0;
-    el.topFilesPrev.disabled = true;
-    el.topFilesNext.disabled = true;
-    el.topFilesPage.textContent = "0 / 0";
     const empty = document.createElement("div");
     empty.className = "top-file-row";
     empty.textContent = "No files";
@@ -2885,16 +3476,7 @@ function renderHomePanel() {{
   }}
 
   const topFiles = files.slice(0, state.topFilesLimit);
-  const pageCount = Math.max(1, Math.ceil(topFiles.length / TOP_FILES_PAGE_SIZE));
-  state.topFilesPage = Math.max(0, Math.min(pageCount - 1, state.topFilesPage));
-  const pageStart = state.topFilesPage * TOP_FILES_PAGE_SIZE;
-  const visibleFiles = topFiles.slice(pageStart, pageStart + TOP_FILES_PAGE_SIZE);
-
-  el.topFilesPrev.disabled = state.topFilesPage <= 0;
-  el.topFilesNext.disabled = state.topFilesPage >= pageCount - 1;
-  el.topFilesPage.textContent = `${{state.topFilesPage + 1}} / ${{pageCount}}`;
-
-  visibleFiles.forEach(file => {{
+  topFiles.forEach(file => {{
     const row = document.createElement("div");
     row.className = "top-file-row";
     row.dataset.id = file.id;
@@ -3046,7 +3628,7 @@ function showLoadError(error) {{
   el.tree.textContent = "";
   const row = document.createElement("div");
   row.className = "row";
-  row.textContent = "Unable to load compressed report data";
+  row.textContent = "Unable to load report data";
   el.tree.appendChild(row);
 
   el.treemap.textContent = "";
@@ -3068,7 +3650,7 @@ async function initReport() {{
   syncMainPaneSize();
 
   try {{
-    const root = await loadCompressedReportData(REPORT_DATA_GZIP);
+    const root = await loadReportData(REPORT_DATA_PAYLOAD);
     prepareReportData(root);
     const initialNode = nodeFromLocationHash();
     if (initialNode) {{
@@ -3096,12 +3678,9 @@ el.homeResizer.addEventListener("pointerdown", beginHomeResize);
 el.homeResizer.addEventListener("keydown", handleHomeResizerKey);
 el.topFilesLimit.addEventListener("change", event => {{
   state.topFilesLimit = normalizeTopFilesLimit(event.target.value);
-  state.topFilesPage = 0;
   renderHomePanel();
   setSelected(state.selected);
 }});
-el.topFilesPrev.addEventListener("click", () => updateTopFilesPage(-1));
-el.topFilesNext.addEventListener("click", () => updateTopFilesPage(1));
 el.sidebar.addEventListener("wheel", event => {{
   if (event.target && event.target.closest(".tree")) return;
   if (!event.deltaY && !event.deltaX) return;
