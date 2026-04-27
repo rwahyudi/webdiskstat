@@ -848,10 +848,10 @@ try {{
   --row-hover: #262d36;
   --row-active: #203747;
   --row-active-line: #38bdf8;
-  --list-bar-top: rgba(123, 215, 255, 0.18);
-  --list-bar: rgba(123, 215, 255, 0.14);
-  --list-bar-bottom: rgba(123, 215, 255, 0.08);
-  --list-bar-edge: rgba(123, 215, 255, 0.38);
+  --list-bar-top: rgba(96, 190, 230, 0.14);
+  --list-bar: rgba(96, 190, 230, 0.10);
+  --list-bar-bottom: rgba(96, 190, 230, 0.06);
+  --list-bar-edge: rgba(96, 190, 230, 0.28);
   --tile-outline: #dbeafe;
   --shadow: 0 12px 28px rgba(0, 0, 0, 0.26);
   --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
@@ -873,10 +873,10 @@ html[data-theme="light"] {{
   --row-hover: #eef6ff;
   --row-active: #dbeafe;
   --row-active-line: #0284c7;
-  --list-bar-top: rgba(3, 105, 161, 0.12);
-  --list-bar: rgba(3, 105, 161, 0.09);
-  --list-bar-bottom: rgba(3, 105, 161, 0.04);
-  --list-bar-edge: rgba(3, 105, 161, 0.26);
+  --list-bar-top: rgba(15, 92, 133, 0.09);
+  --list-bar: rgba(15, 92, 133, 0.07);
+  --list-bar-bottom: rgba(15, 92, 133, 0.035);
+  --list-bar-edge: rgba(15, 92, 133, 0.18);
   --tile-outline: #0f172a;
   --shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
   --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
@@ -2212,7 +2212,6 @@ html[data-theme="light"] .report-security.plain {{
             <option value="20">20</option>
             <option value="50">50</option>
             <option value="100">100</option>
-            <option value="500">500</option>
           </select>
         </div>
         <section id="treemap" class="treemap" aria-label="Treemap"></section>
@@ -2271,22 +2270,20 @@ html[data-theme="light"] .report-security.plain {{
             <li>Double-click a directory to enter it.</li>
             <li>Use the column headers to sort by name, items, files, size, or modified date.</li>
             <li>Use the column settings button next to the Name header to show or hide optional columns.</li>
-            <li>Modified time appears when it was included in the scan data.</li>
           </ul>
         </section>
         <section class="help-section">
           <h3>Treemap</h3>
           <ul>
-            <li>Top-level rectangles are files or directories in the current directory.</li>
             <li>Larger directory tiles show subdirectories and files inside them when space allows.</li>
-            <li>The treemap defaults to a maximum of 10 visible tiles, and the Max Tiles Depth menu can raise or lower that cap.</li>
-            <li>Hover a tile for path and size. Double-click a directory tile to enter it.</li>
+            <li>Directories show up to the selected Max Tiles Depth entries before grouping additional entries as smaller entries.</li>
+            <li>Double-click a directory tile to enter it.</li>
           </ul>
         </section>
         <section class="help-section">
           <h3>Home View</h3>
           <ul>
-            <li>Choose 10 to 50 biggest files from the list menu. Results are paged 10 at a time.</li>
+            <li>Choose 10 to 50 biggest files from the list menu.</li>
             <li>Drag the divider between the treemap and biggest-files list to resize the home panes.</li>
             <li>Double-click a listed file to jump to the directory containing it.</li>
           </ul>
@@ -2297,7 +2294,6 @@ html[data-theme="light"] .report-security.plain {{
             <li>Use the breadcrumb path at the top to jump to a parent directory.</li>
             <li>Drag the divider between the directory list and right panel to resize the right panel.</li>
             <li>Use the parent button next to the Name column header to go up one directory.</li>
-            <li>Use the home icon in the breadcrumb path to return to the scan root.</li>
           </ul>
         </section>
         <section class="help-section">
@@ -2756,13 +2752,14 @@ const palette = [
   "#b45309", "#0369a1", "#a21caf", "#4d7c0f", "#b91c1c", "#1d4ed8",
   "#0e7490", "#9333ea", "#ca8a04", "#15803d", "#db2777", "#4338ca"
 ];
-const DEFAULT_TREEMAP_TILE_CAP = 10;
-const TREEMAP_TILE_CAP_OPTIONS = [5, 10, 20, 50, 100, 500];
+const DEFAULT_TREEMAP_TILE_CAP = 5;
+const TREEMAP_TILE_CAP_OPTIONS = [5, 10, 20, 50, 100];
 const TREEMAP_MAX_DEPTH = 8;
 const TREEMAP_CHILD_INSET = 4;
 const TREEMAP_CHILD_LABEL_HEIGHT = 24;
 const TREEMAP_MIN_NESTED_WIDTH = 92;
 const TREEMAP_MIN_NESTED_HEIGHT = 68;
+const TREEMAP_TOP_LEVEL_DIR_GAP = 2;
 const TREE_ROW_HEIGHT = 36;
 const TREE_OVERSCAN_ROWS = 8;
 const TOP_FILES_LIMITS = [10, 20, 30, 40, 50];
@@ -3495,23 +3492,28 @@ function renderTree() {{
   renderVisibleTreeRows(true);
 }}
 
+function effectiveTreemapVisibleEntryLimit(maxItems = DEFAULT_TREEMAP_TILE_CAP) {{
+  const numeric = Number(maxItems);
+  const requestedLimit = Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : DEFAULT_TREEMAP_TILE_CAP;
+  return requestedLimit;
+}}
+
 function treemapItems(node, maxItems = DEFAULT_TREEMAP_TILE_CAP) {{
-  const tileLimit = Math.max(0, Math.floor(maxItems));
-  if (tileLimit <= 0) return [];
+  const entryLimit = effectiveTreemapVisibleEntryLimit(maxItems);
+  if (entryLimit <= 0) return [];
   const entries = (node.children || [])
     .filter(child => child.size > 0)
     .sort((a, b) => b.size - a.size);
   if (!entries.length && node.type !== "dir" && node.size > 0) return [node];
-  if (entries.length <= tileLimit) return entries;
+  if (entries.length <= entryLimit) return entries;
 
-  const visibleLimit = Math.max(0, tileLimit - 1);
-  const visible = entries.slice(0, visibleLimit);
-  const hidden = entries.slice(visibleLimit);
+  const visible = entries.slice(0, entryLimit);
+  const hidden = entries.slice(entryLimit);
   const hiddenSize = hidden.reduce((sum, item) => sum + item.size, 0);
   if (hiddenSize > 0) {{
     visible.push({{
       id: `other-${{node.id}}`,
-      name: `${{formatCount(hidden.length)}} smaller entries`,
+      name: `${{formatCount(hidden.length)}} smaller ${{hidden.length === 1 ? "entry" : "entries"}}`,
       path: `${{node.path || node.name}} / smaller entries`,
       size: hiddenSize,
       type: "file",
@@ -3618,25 +3620,36 @@ function layoutTreemap(items, x, y, w, h) {{
   }}
 }}
 
-function renderTreemapTile(container, rect, depth, budget, maxTiles, reserveTiles = 0) {{
-  const budgetLimit = Math.max(0, maxTiles - reserveTiles);
-  if (budget.count >= budgetLimit || rect.w < 1 || rect.h < 1) return;
+function topLevelDirectoryTileRect(rect, node, depth) {{
+  if (depth !== 0 || node.type !== "dir") return rect;
+  const gap = Math.min(TREEMAP_TOP_LEVEL_DIR_GAP, Math.max(0, (Math.min(rect.w, rect.h) - 2) / 2));
+  return {{
+    ...rect,
+    x: rect.x + gap,
+    y: rect.y + gap,
+    w: Math.max(0, rect.w - gap * 2),
+    h: Math.max(0, rect.h - gap * 2)
+  }};
+}}
 
+function renderTreemapTile(container, rect, depth, maxItems) {{
+  if (rect.w < 1 || rect.h < 1) return;
   const node = rect.node;
-  const childBounds = nestedTreemapBounds(node, rect, depth);
-  const childBudget = budgetLimit - budget.count - 1;
-  const childItems = childBounds && childBudget > 0 ? treemapItems(node, childBudget) : [];
+  const tileRect = topLevelDirectoryTileRect(rect, node, depth);
+  if (tileRect.w < 1 || tileRect.h < 1) return;
+  const childBounds = nestedTreemapBounds(node, tileRect, depth);
+  const childItems = childBounds ? treemapItems(node, maxItems) : [];
   const childRects = childItems.length
     ? layoutTreemap(childItems, 0, 0, childBounds.w, childBounds.h)
     : [];
   const hasNestedTiles = childRects.length > 0;
   const tile = document.createElement("div");
-  tile.className = `tile ${{node.type}}${{depth > 0 ? " nested" : ""}}${{hasNestedTiles ? " has-children" : ""}}`;
+  tile.className = `tile ${{node.type}}${{depth > 0 ? " nested" : ""}}${{depth === 0 && node.type === "dir" ? " top-level-dir" : ""}}${{hasNestedTiles ? " has-children" : ""}}`;
   tile.dataset.id = node.id;
-  tile.style.left = `${{rect.x}}px`;
-  tile.style.top = `${{rect.y}}px`;
-  tile.style.width = `${{Math.max(0, rect.w)}}px`;
-  tile.style.height = `${{Math.max(0, rect.h)}}px`;
+  tile.style.left = `${{tileRect.x}}px`;
+  tile.style.top = `${{tileRect.y}}px`;
+  tile.style.width = `${{Math.max(0, tileRect.w)}}px`;
+  tile.style.height = `${{Math.max(0, tileRect.h)}}px`;
   tile.style.setProperty("--tile-color", treemapColorFor(node));
   tile.title = "";
   tile.addEventListener("click", event => {{
@@ -3652,20 +3665,19 @@ function renderTreemapTile(container, rect, depth, budget, maxTiles, reserveTile
     showTooltip(event, node);
   }});
   tile.addEventListener("mouseleave", hideTooltip);
-  if (node.type === "dir" && rect.w > 52 && rect.h > 28) {{
+  if (node.type === "dir" && tileRect.w > 52 && tileRect.h > 28) {{
     const kind = document.createElement("div");
     kind.className = "tile-kind";
     kind.textContent = "DIR";
     tile.appendChild(kind);
   }}
-  if (rect.w > 56 && rect.h > 32) {{
+  if (tileRect.w > 56 && tileRect.h > 32) {{
     const label = document.createElement("div");
     label.className = "tile-label";
     label.textContent = node.name;
     tile.appendChild(label);
   }}
 
-  budget.count += 1;
   if (hasNestedTiles) {{
     const childLayer = document.createElement("div");
     childLayer.className = "tile-children";
@@ -3673,7 +3685,7 @@ function renderTreemapTile(container, rect, depth, budget, maxTiles, reserveTile
     childLayer.style.top = `${{childBounds.y}}px`;
     childLayer.style.width = `${{childBounds.w}}px`;
     childLayer.style.height = `${{childBounds.h}}px`;
-    childRects.forEach(childRect => renderTreemapTile(childLayer, childRect, depth + 1, budget, maxTiles, reserveTiles));
+    childRects.forEach(childRect => renderTreemapTile(childLayer, childRect, depth + 1, maxItems));
     if (childLayer.childElementCount) tile.appendChild(childLayer);
   }}
 
@@ -3685,8 +3697,9 @@ function renderTreemap() {{
   const bounds = el.treemap.getBoundingClientRect();
   state.treemapTileCap = normalizeTreemapTileCap(state.treemapTileCap);
   el.treemapTileCap.value = String(state.treemapTileCap);
-  el.treemap.setAttribute("aria-label", `Treemap, showing up to ${{state.treemapTileCap}} tiles`);
-  const items = treemapItems(state.current, state.treemapTileCap);
+  const entryLimit = effectiveTreemapVisibleEntryLimit(state.treemapTileCap);
+  el.treemap.setAttribute("aria-label", `Treemap, showing up to ${{entryLimit}} entries per directory before grouping smaller entries`);
+  const items = treemapItems(state.current, entryLimit);
   const rects = layoutTreemap(items, 0, 0, bounds.width, bounds.height);
   if (!rects.length) {{
     const empty = document.createElement("div");
@@ -3696,9 +3709,8 @@ function renderTreemap() {{
     return;
   }}
 
-  const budget = {{ count: 0 }};
-  rects.forEach((rect, index) => {{
-    renderTreemapTile(el.treemap, rect, 0, budget, state.treemapTileCap, rects.length - index - 1);
+  rects.forEach(rect => {{
+    renderTreemapTile(el.treemap, rect, 0, entryLimit);
   }});
 }}
 

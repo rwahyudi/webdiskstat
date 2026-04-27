@@ -1,13 +1,13 @@
 # webdiskstat - gdu and ncdu web disk usage viewer
 
-`webdiskstat` converts JSON from `gdu -o-` or `ncdu -o-` into a self-contained disk usage HTML report you can open in a browser. It works as a lightweight `gdu` web UI and `ncdu` web viewer with a WinDirStat-style directory list, browser treemap, navigation, optional compression, and optional encryption.
+`webdiskstat` converts JSON from [`gdu -o-`](https://github.com/dundee/gdu) or [`ncdu -o-`](https://dev.yorhel.nl/ncdu) into a self-contained disk usage HTML report you can open in a browser. It works as a lightweight `gdu` web UI and `ncdu` web viewer with a WinDirStat-style directory list, browser treemap, navigation, optional compression, and optional encryption.
 
 Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML report, or publish an offline disk usage treemap without running a web server.
 
 ## Requirements
 
 - Python 3.10 or newer
-- `gdu` or `ncdu`
+- [`gdu`](https://github.com/dundee/gdu) or [`ncdu`](https://dev.yorhel.nl/ncdu)
 
 ## Features
 
@@ -112,7 +112,7 @@ Encrypt the embedded report data with `--password`:
 - Columns are sortable by name, item count, file count, size, and modified date.
 - Optional columns can be shown or hidden from the column settings button next to the Name header.
 - The treemap shows the current directory, including nested subdirectories and files inside larger directory tiles when space allows.
-- The treemap defaults to 10 visible tiles; the Max Tiles Depth menu can raise or lower the cap, and additional entries are grouped as smaller entries.
+- The treemap shows up to the selected Max Tiles Depth entries per directory before grouping additional entries as smaller entries.
 - The divider between the directory list and right panel can be dragged to resize the right panel.
 - The home view shows a smaller treemap and a framed biggest-files list.
 - The biggest-files list can show 10 to 50 entries and scrolls when the list is taller than the pane.
