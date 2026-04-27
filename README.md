@@ -1,6 +1,8 @@
-# webdiskstat
+# webdiskstat - gdu and ncdu web disk usage viewer
 
-`webdiskstat` converts JSON from `gdu -o-` or `ncdu -o-` into a self-contained HTML disk usage report with a WinDirStat-style directory list and treemap.
+`webdiskstat` converts JSON from `gdu -o-` or `ncdu -o-` into a self-contained disk usage HTML report you can open in a browser. It works as a lightweight `gdu` web UI and `ncdu` web viewer with a WinDirStat-style directory list, browser treemap, navigation, optional compression, and optional encryption.
+
+Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML report, or publish an offline disk usage treemap without running a web server.
 
 ## Requirements
 
@@ -9,37 +11,29 @@
 
 ## Features
 
-- Converts `gdu -o-` JSON into a single self-contained static HTML report by default.
-- Supports `ncdu -o-` JSON with `--input-type ncdu`.
-- Reads JSON from stdin, a saved JSON file, or a `.gz` compressed JSON file.
-- Writes to an HTML file or stdout with `-o -`.
-- Embeds scan data as a gzip-compressed compact string-table payload.
+- Converts `gdu -o-` JSON by default and supports `ncdu -o-` JSON with `--input-type ncdu`.
+- Reads scanner JSON from stdin, a saved JSON file, or a `.gz` file, and writes a single self-contained disk usage HTML report.
+- Embeds scan data as a gzip-compressed compact string-table payload to keep generated reports smaller.
 - Optionally encrypts embedded scan data with `--password` using PBKDF2-SHA256 and ChaCha20-Poly1305.
 - Encrypted reports prompt for a password in the browser before loading scan data.
 - Encrypted reports use Web Crypto when available and include a JavaScript fallback for `file://` and other non-HTTPS schemes.
 - Shows an encrypted or unencrypted data indicator in the footer.
-- Displays a WinDirStat-style directory list with name, item count, file count, size, modified date, and percentage columns.
 - Virtualizes large directory listings so directories with thousands of entries remain responsive.
-- Sorts directory rows by name, item count, file count, size, or modified date.
-- Lets users show or hide optional directory-list columns from the column settings menu.
-- Uses comma grouping for file and item counts.
-- Shows an interactive treemap for the current directory.
-- Colors directory tiles distinctly and file tiles by extension.
-- Shows a home view with a smaller treemap and a biggest-files list.
-- Lets the biggest-files list show 10 to 50 entries and scroll when needed.
-- Supports double-click navigation into directories and from biggest-file rows to containing directories.
-- Shows details for the selected entry, including size, percentage, type, extension, item count, file count, and modified time when available.
-- Supports breadcrumb navigation, parent navigation, bookmarkable URL hashes, and browser back/forward navigation.
+- Supports breadcrumb navigation, parent navigation, double-click directory entry, browser back/forward navigation, and bookmarkable URL hashes.
 - Supports keyboard navigation with arrow keys, Page Up, Page Down, Home, End, Enter, Backspace, Escape, `?` help, and sort shortcuts.
-- Lets users resize the main split pane and the home-view treemap/list split.
-- Includes a dark theme, a light theme, and persistent theme/pane-size preferences when browser storage is available.
-- Includes an in-report Help dialog for features, mouse actions, keyboard shortcuts, and navigation.
-- Shows the generated date, time, and final HTML file size in the footer.
-- Works as a static report after generation without Python or `gdu`.
+- Includes a sortable directory list, configurable columns, nested treemap tiles, a configurable treemap tile cap, and a biggest-files view.
+- Works as a static report after generation without Python, `gdu`, or `ncdu`.
+
+## Use Cases
+
+- View `gdu` output in a browser as a static disk usage report.
+- Share `ncdu` results as a self-contained HTML report.
+- Generate an offline browser treemap for a directory scan without running a web server.
+- Create an encrypted disk usage report when scan paths or metadata are sensitive.
 
 ## Screenshot
 
-![webdiskstat report showing the directory list, treemap, details panel, and data security footer](docs/assets/webdiskstat-screenshot.png)
+![gdu and ncdu web disk usage HTML report showing a browser treemap, directory list, details panel, and encrypted data footer](docs/assets/webdiskstat-screenshot.png)
 
 ## Download and Install
 
@@ -50,27 +44,15 @@ git clone https://github.com/rwahyudi/webdiskstat.git
 cd webdiskstat
 ```
 
-Run it from the cloned directory:
-
-```sh
-gdu -o- /path/to/scan | ./webdiskstat.py -o webdiskstat.html
-```
-
 Optional: make it available from your shell path:
 
 ```sh
 install -Dm755 webdiskstat.py ~/.local/bin/webdiskstat
 ```
 
-Then run:
-
-```sh
-gdu -o- /path/to/scan | webdiskstat -o webdiskstat.html
-```
-
 ## Quick Start
 
-Generate a report directly from `gdu`:
+Generate a `gdu` web report:
 
 ```sh
 gdu -o- /path/to/scan | ./webdiskstat.py -o diskstats.html
@@ -78,30 +60,23 @@ gdu -o- /path/to/scan | ./webdiskstat.py -o diskstats.html
 
 Open `diskstats.html` in a browser.
 
-Generate a report from `ncdu`:
+Generate an `ncdu` web report:
 
 ```sh
 ncdu -o- /path/to/scan | ./webdiskstat.py --input-type ncdu -o diskstats.html
 ```
 
-You can also save the scanner JSON first:
+Generate a disk usage HTML report from a saved scanner export:
 
 ```sh
 gdu -o report.json /path/to/scan
 ./webdiskstat.py report.json -o diskstats.html
 ```
 
-For a saved `ncdu` export, pass the input type explicitly:
+Read a compressed scanner export:
 
 ```sh
-ncdu -o report.json /path/to/scan
-./webdiskstat.py --input-type ncdu report.json -o diskstats.html
-```
-
-Read compressed JSON:
-
-```sh
-zcat report.json.gz | ./webdiskstat.py -o diskstats.html
+./webdiskstat.py report.json.gz -o diskstats.html
 ```
 
 ## Example
@@ -123,7 +98,9 @@ usage: webdiskstat.py [-h] [--input-type {gdu,ncdu}] [-o OUTPUT] [--password PAS
 
 Running the script without piped input or an input file prints the usage instructions.
 
-Encrypt the embedded report data:
+## Encryption
+
+Encrypt the embedded report data with `--password`:
 
 ```sh
 ./webdiskstat.py report.json -o diskstats.html --password 'choose-a-strong-password'
@@ -134,37 +111,39 @@ Encrypt the embedded report data:
 - The left panel lists the current directory entries, including modified time when the scan data provides it.
 - Columns are sortable by name, item count, file count, size, and modified date.
 - Optional columns can be shown or hidden from the column settings button next to the Name header.
-- File and item counts use comma grouping.
-- The treemap shows the current directory, including directories and files directly inside that directory.
-- Directory tiles use distinct shaded colors. File tiles are colored by extension.
+- The treemap shows the current directory, including nested subdirectories and files inside larger directory tiles when space allows.
+- The treemap defaults to 10 visible tiles; the Max Tiles Depth menu can raise or lower the cap, and additional entries are grouped as smaller entries.
 - The divider between the directory list and right panel can be dragged to resize the right panel.
 - The home view shows a smaller treemap and a framed biggest-files list.
 - The biggest-files list can show 10 to 50 entries and scrolls when the list is taller than the pane.
 - The home view divider can be dragged to resize the treemap and biggest-files list.
 - Double-click a listed file to jump to the directory containing that file.
 - Details show size, percentage, type, extension, item count, file count, and modified time when the scan data provides it.
-- Generated date, time, and final HTML file size are shown in the footer.
 - The Help button in the toolbar, or the `?` shortcut, explains features, mouse actions, keyboard shortcuts, and navigation.
-- The toolbar theme switch toggles between the default dark theme and a light theme.
 
-## Keyboard and Navigation
+## Navigation
 
+- Breadcrumbs, the parent button, and browser back/forward move between directories.
+- Double-click a directory row or treemap tile to enter it.
+- Double-click a biggest-files row to jump to the directory containing that file.
+- The URL hash changes as you navigate, so directory views are bookmarkable.
 - `Arrow Up` / `Arrow Down`: move selection in the directory list.
 - `Page Up` / `Page Down`: move selection by one visible page.
-- `Home` / `End`: jump to first or last item.
+- `Home` / `End`: jump to the first or last item.
+- `Enter` / `Arrow Right`: enter the selected directory.
+- `Backspace` / `Arrow Left`: go up one directory.
 - `n` / `s` / `C` / `M` or `m`: sort by name, size, file count, or modified time. Repeating the same shortcut toggles ascending or descending order.
-- `Enter` or `Arrow Right`: enter the selected directory.
-- `Backspace` or `Arrow Left`: go up one directory.
 - `?`: open the Help dialog.
-- The URL hash changes as you navigate, so directory views are bookmarkable.
 
-## Notes
+## Compression and Security
 
-The output is a static HTML file. After generation, it does not need Python, `gdu`, or `ncdu` to view the report.
+The output is a static browser disk usage report. After generation, it does not need Python, `gdu`, or `ncdu` to view the report.
 
-The scan data is embedded as a gzip-compressed compact string-table payload and expanded by the browser when the report loads.
-Viewing generated reports requires a browser with the standard `DecompressionStream` API.
-Encrypted reports prompt for the password before loading the scan data. They use the standard Web Crypto API when available and include a slower JavaScript fallback for `file://` and other non-HTTPS schemes.
-Unencrypted reports disclose the scan metadata embedded in the HTML. Encrypted reports still depend on password strength, and command-line passwords may be visible in shell history or process lists.
-
-This script was vibe-coded.
+- Scan data is normalized into a compact string-table payload, gzip-compressed, embedded in the HTML, and expanded by the browser when the report loads.
+- The generated file is a compressed HTML disk usage report rather than a server-backed web app.
+- Viewing generated reports requires a browser with the standard `DecompressionStream` API.
+- Encrypted disk usage reports prompt for the password before loading scan data.
+- Encryption uses PBKDF2-SHA256 key derivation and ChaCha20-Poly1305 payload encryption.
+- Reports use the browser Web Crypto API when available and include a slower JavaScript fallback for `file://` and other non-HTTPS schemes.
+- Unencrypted reports disclose the scan metadata embedded in the HTML.
+- Encrypted reports still depend on password strength, and command-line passwords may be visible in shell history or process lists.
