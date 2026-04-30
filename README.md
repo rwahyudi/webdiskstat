@@ -1,6 +1,6 @@
 # webdiskstat - gdu and ncdu web disk usage viewer
 
-`webdiskstat` converts JSON from [`gdu -o-`](https://github.com/dundee/gdu) or [`ncdu -o-`](https://dev.yorhel.nl/ncdu) into a self-contained disk usage HTML report you can open in a browser. It works as a lightweight `gdu` web UI and `ncdu` web viewer with a WinDirStat-style directory list, browser treemap, navigation, optional compression, and optional encryption.
+`webdiskstat` converts JSON from [`gdu -o-`](https://github.com/dundee/gdu) or [`ncdu -o-`](https://dev.yorhel.nl/ncdu) into a self-contained disk usage HTML report you can open in a browser. It works as a lightweight `gdu` web UI and `ncdu` web viewer with a WinDirStat-style directory list, browser treemap, navigation, optional compression, and optional encryption. [Try the live example report](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html) to see the browser UI before generating your own.
 
 Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML report, or publish an offline disk usage treemap without running a web server.
 
@@ -19,6 +19,7 @@ Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML 
 - Encrypted reports use Web Crypto when available and include a JavaScript fallback for `file://` and other non-HTTPS schemes.
 - Shows an encrypted or unencrypted data indicator in the footer.
 - Virtualizes large directory listings so directories with thousands of entries remain responsive.
+- Includes global search backed by a prebuilt index for quickly jumping to files or directories.
 - Supports breadcrumb navigation, parent navigation, double-click directory entry, browser back/forward navigation, and bookmarkable URL hashes.
 - Supports keyboard navigation with arrow keys, Page Up, Page Down, Home, End, Enter, Backspace, Escape, `?` help, and sort shortcuts.
 - Includes a sortable directory list, configurable columns, nested treemap tiles, a configurable treemap tile cap, and a biggest-files view.
@@ -85,6 +86,8 @@ Open the included sample report in the repository: [example/report.html](example
 
 Preview it in a browser through HTMLPreview: [webdiskstat example report](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html).
 
+The included example uses 83,000 generated files across 12 uneven top-level workspaces and 4 loose root files, including one workspace with 12,000 direct files and three desktop-style user workspaces, so it exercises large-directory navigation and search.
+
 ## Options
 
 ```text
@@ -111,6 +114,7 @@ Encrypt the embedded report data with `--password`:
 - The left panel lists the current directory entries, including modified time when the scan data provides it.
 - Columns are sortable by name, item count, file count, size, and modified date.
 - Optional columns can be shown or hidden from the column settings button next to the Name header.
+- The toolbar search finds files and directories across the whole report and jumps to the selected result.
 - The treemap shows the current directory, including nested subdirectories and files inside larger directory tiles when space allows.
 - The treemap shows up to the selected Max Tiles Depth entries per directory before grouping additional entries as smaller entries.
 - The divider between the directory list and right panel can be dragged to resize the right panel.
@@ -124,6 +128,7 @@ Encrypt the embedded report data with `--password`:
 ## Navigation
 
 - Breadcrumbs, the parent button, and browser back/forward move between directories.
+- Use the search box, `/`, or `Ctrl+F` to find files and directories across the report.
 - Double-click a directory row or treemap tile to enter it.
 - Double-click a biggest-files row to jump to the directory containing that file.
 - The URL hash changes as you navigate, so directory views are bookmarkable.

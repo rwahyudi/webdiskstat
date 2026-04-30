@@ -948,16 +948,17 @@ kbd {{
   grid-template-rows: auto 1fr auto;
 }}
 .toolbar {{
+  position: relative;
   min-height: 58px;
   padding: 10px 16px;
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 420px) auto;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, #242a32 0%, var(--panel) 100%);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18), var(--shadow-soft);
-  z-index: 2;
+  z-index: 60;
 }}
 .crumbs {{
   min-width: 0;
@@ -991,6 +992,93 @@ kbd {{
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }}
 .sep {{ color: var(--muted); }}
+.search {{
+  position: relative;
+  z-index: 61;
+  min-width: 0;
+}}
+.search-input {{
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--control) 88%, black 12%);
+  color: var(--ink);
+  padding: 0 14px;
+  font-size: 13px;
+  box-shadow: var(--shadow-soft);
+}}
+.search-input::placeholder {{
+  color: var(--muted);
+}}
+.search-input:focus {{
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent), var(--shadow-soft);
+}}
+.search-results {{
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  max-height: min(420px, calc(100vh - 96px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 94%, black 6%);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.36), var(--shadow-soft);
+}}
+.search-results[hidden] {{
+  display: none;
+}}
+.search-result {{
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 0;
+  border-bottom: 1px solid var(--subtle-line);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}}
+.search-result:last-child {{
+  border-bottom: 0;
+}}
+.search-result:hover,
+.search-result.active {{
+  background: var(--row-hover);
+}}
+.search-result-name,
+.search-result-path {{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}}
+.search-result-name {{
+  font-size: 13px;
+  font-weight: 700;
+}}
+.search-result-path {{
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}}
+.search-result-meta {{
+  align-self: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}}
+.search-empty {{
+  padding: 11px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}}
 .generated {{
   color: var(--muted);
   font-size: 12px;
@@ -2063,6 +2151,18 @@ html[data-theme="light"] .tree-columns-menu {{
   background: #ffffff;
   border-color: #cbd5e1;
 }}
+html[data-theme="light"] .search-input {{
+  background: #f8fafc;
+}}
+html[data-theme="light"] .search-results {{
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16), var(--shadow-soft);
+}}
+html[data-theme="light"] .search-result:hover,
+html[data-theme="light"] .search-result.active {{
+  background: #eef6ff;
+}}
 html[data-theme="light"] .row.file {{
   color: #334155;
 }}
@@ -2138,6 +2238,9 @@ html[data-theme="light"] .report-security.plain {{
   .toolbar {{
     grid-template-columns: 1fr;
   }}
+  .search {{
+    width: 100%;
+  }}
   .tools {{
     justify-content: stretch;
   }}
@@ -2178,6 +2281,10 @@ html[data-theme="light"] .report-security.plain {{
 <div class="app">
   <header class="toolbar">
     <nav id="crumbs" class="crumbs" aria-label="Path"></nav>
+    <div class="search" role="search">
+      <input id="searchInput" class="search-input" type="search" placeholder="Search files and folders" autocomplete="off" aria-label="Search files and folders" aria-controls="searchResults" aria-expanded="false">
+      <div id="searchResults" class="search-results" role="listbox" aria-label="Search results" hidden></div>
+    </div>
     <div class="tools">
       <label class="theme-toggle" title="Toggle light theme">
         <input id="themeToggle" class="theme-input" type="checkbox" role="switch" aria-label="Light theme">
@@ -2292,6 +2399,7 @@ html[data-theme="light"] .report-security.plain {{
           <h3>Navigation</h3>
           <ul>
             <li>Use the breadcrumb path at the top to jump to a parent directory.</li>
+            <li>Use the search box to jump directly to files or directories anywhere in the report.</li>
             <li>Drag the divider between the directory list and right panel to resize the right panel.</li>
             <li>Use the parent button next to the Name column header to go up one directory.</li>
           </ul>
@@ -2302,6 +2410,7 @@ html[data-theme="light"] .report-security.plain {{
             <div><span><kbd>Up</kbd> / <kbd>Down</kbd></span><span>Move selection in the list.</span></div>
             <div><span><kbd>Page Up</kbd> / <kbd>Page Down</kbd></span><span>Move selection by one visible page.</span></div>
             <div><span><kbd>Home</kbd> / <kbd>End</kbd></span><span>Jump to the first or last item.</span></div>
+            <div><span><kbd>/</kbd> / <kbd>Ctrl</kbd>+<kbd>F</kbd></span><span>Focus global search.</span></div>
             <div><span><kbd>n</kbd> / <kbd>s</kbd> / <kbd>C</kbd> / <kbd>M</kbd>/<kbd>m</kbd></span><span>Sort by name, size, file count, or modified time.</span></div>
             <div><span><kbd>Enter</kbd> / <kbd>Right</kbd></span><span>Enter the selected directory.</span></div>
             <div><span><kbd>Backspace</kbd> / <kbd>Left</kbd></span><span>Go up one directory.</span></div>
@@ -2752,6 +2861,7 @@ const palette = [
   "#b45309", "#0369a1", "#a21caf", "#4d7c0f", "#b91c1c", "#1d4ed8",
   "#0e7490", "#9333ea", "#ca8a04", "#15803d", "#db2777", "#4338ca"
 ];
+const TREEMAP_SMALLER_ENTRIES_COLOR = "#64748b";
 const DEFAULT_TREEMAP_TILE_CAP = 5;
 const TREEMAP_TILE_CAP_OPTIONS = [5, 10, 20, 50, 100];
 const TREEMAP_MAX_DEPTH = 8;
@@ -2798,6 +2908,9 @@ const HOME_MIN_TREEMAP_SIZE = 180;
 const HOME_MIN_TOP_FILES_SIZE = 260;
 const HOME_RESIZER_SIZE = 12;
 const HOME_RESIZE_STEP = 32;
+const SEARCH_RESULT_LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 80;
+const SEARCH_TRIGRAM_SIZE = 3;
 
 const state = {{
   current: null,
@@ -2806,12 +2919,17 @@ const state = {{
   sortDir: "desc",
   topFilesLimit: 10,
   treemapTileCap: DEFAULT_TREEMAP_TILE_CAP,
+  searchActiveIndex: -1,
   visibleColumns: {{ ...DEFAULT_TREE_COLUMNS }}
 }};
 
 const byId = new Map();
 const byPath = new Map();
 const parent = new Map();
+const searchIndex = [];
+const searchCandidateIndex = new Map();
+let searchResults = [];
+let searchTimer = 0;
 let nextNodeId = 0;
 const treeView = {{
   node: null,
@@ -2828,6 +2946,8 @@ const el = {{
   helpButton: document.getElementById("helpButton"),
   helpPage: document.getElementById("helpPage"),
   helpCloseButton: document.getElementById("helpCloseButton"),
+  searchInput: document.getElementById("searchInput"),
+  searchResults: document.getElementById("searchResults"),
   selectedSize: document.getElementById("selectedSize"),
   selectedItems: document.getElementById("selectedItems"),
   selectedFiles: document.getElementById("selectedFiles"),
@@ -2851,12 +2971,53 @@ const el = {{
   tooltip: document.getElementById("tooltip")
 }};
 
+function normalizeSearchText(value) {{
+  return String(value || "").trim().toLowerCase();
+}}
+
+function searchTrigrams(value) {{
+  const text = normalizeSearchText(value);
+  if (text.length < SEARCH_TRIGRAM_SIZE) return [];
+  const seen = new Set();
+  for (let index = 0; index <= text.length - SEARCH_TRIGRAM_SIZE; index++) {{
+    seen.add(text.slice(index, index + SEARCH_TRIGRAM_SIZE));
+  }}
+  return Array.from(seen);
+}}
+
+function addSearchCandidateIndexEntry(searchText, entryIndex) {{
+  searchTrigrams(searchText).forEach(trigram => {{
+    let entries = searchCandidateIndex.get(trigram);
+    if (!entries) {{
+      entries = [];
+      searchCandidateIndex.set(trigram, entries);
+    }}
+    entries.push(entryIndex);
+  }});
+}}
+
+function addSearchIndexEntry(node) {{
+  const name = node.name || "";
+  const path = node.path || name;
+  const ext = node.ext || "";
+  const entry = {{
+    node,
+    nameLower: normalizeSearchText(name),
+    pathLower: normalizeSearchText(path),
+    searchText: normalizeSearchText(`${{name}}\n${{path}}\n${{ext}}`)
+  }};
+  const entryIndex = searchIndex.length;
+  searchIndex.push(entry);
+  addSearchCandidateIndexEntry(entry.searchText, entryIndex);
+}}
+
 function walk(node, parentNode, depth = 0) {{
   node.id = nextNodeId++;
   node.depth = depth;
   byId.set(node.id, node);
   byPath.set(node.path || node.name, node);
   parent.set(node.id, parentNode);
+  addSearchIndexEntry(node);
   let total = 1;
   let files = node.type === "dir" ? 0 : 1;
   if (node.children) {{
@@ -2951,6 +3112,7 @@ function colorFor(node) {{
 }}
 
 function treemapColorFor(node) {{
+  if (node.ext === "[other]") return TREEMAP_SMALLER_ENTRIES_COLOR;
   if (node.type !== "dir") return colorFor(node);
   const hash = hashString(pathForNode(node) || node.name || String(node.id));
   const hue = 176 + (hash % 26);
@@ -3046,6 +3208,197 @@ function setSelected(node) {{
   renderDetails();
   document.querySelectorAll(".row.active, .tile.active, .top-file-row.active").forEach(item => item.classList.remove("active"));
   document.querySelectorAll(`[data-id="${{node.id}}"]`).forEach(item => item.classList.add("active"));
+}}
+
+function searchEntryMatches(entry, terms) {{
+  for (let index = 0; index < terms.length; index++) {{
+    if (!entry.searchText.includes(terms[index])) return false;
+  }}
+  return true;
+}}
+
+function searchScore(entry, terms, query) {{
+  const node = entry.node;
+  let score = node.type === "dir" ? 0 : 6;
+  if (entry.nameLower === query) {{
+    score -= 80;
+  }} else if (entry.nameLower.startsWith(query)) {{
+    score -= 60;
+  }} else if (entry.pathLower.endsWith(`/${{query}}`)) {{
+    score -= 45;
+  }} else if (entry.nameLower.includes(query)) {{
+    score -= 30;
+  }}
+
+  terms.forEach(term => {{
+    const nameIndex = entry.nameLower.indexOf(term);
+    if (nameIndex === 0) {{
+      score -= 10;
+    }} else if (nameIndex > 0) {{
+      score += nameIndex / 24;
+    }} else {{
+      const pathIndex = entry.pathLower.indexOf(term);
+      score += pathIndex >= 0 ? 12 + pathIndex / 80 : 40;
+    }}
+  }});
+  score += Math.min(16, node.depth || 0);
+  score -= Math.min(18, Math.log2((node.size || 0) + 1));
+  return score;
+}}
+
+function insertSearchResult(results, candidate, limit) {{
+  if (results.length >= limit && candidate.score >= results[results.length - 1].score) return;
+  let index = results.length;
+  while (index > 0 && candidate.score < results[index - 1].score) index--;
+  results.splice(index, 0, candidate);
+  if (results.length > limit) results.pop();
+}}
+
+function candidateIndexesForSearchTerms(terms) {{
+  let bestCandidates = null;
+  for (let termIndex = 0; termIndex < terms.length; termIndex++) {{
+    const term = terms[termIndex];
+    if (term.length < SEARCH_TRIGRAM_SIZE) continue;
+    const trigrams = searchTrigrams(term);
+    for (let trigramIndex = 0; trigramIndex < trigrams.length; trigramIndex++) {{
+      const candidates = searchCandidateIndex.get(trigrams[trigramIndex]);
+      if (!candidates) return [];
+      if (!bestCandidates || candidates.length < bestCandidates.length) bestCandidates = candidates;
+    }}
+  }}
+  return bestCandidates;
+}}
+
+function findSearchMatches(query, limit = SEARCH_RESULT_LIMIT) {{
+  const normalized = normalizeSearchText(query);
+  if (!normalized) return [];
+  const terms = normalized.split(/\\s+/).filter(Boolean);
+  if (!terms.length) return [];
+
+  const results = [];
+  const candidateIndexes = candidateIndexesForSearchTerms(terms);
+  const fullScan = candidateIndexes === null;
+  const candidateCount = fullScan ? searchIndex.length : candidateIndexes.length;
+  for (let index = 0; index < candidateCount; index++) {{
+    const entry = fullScan ? searchIndex[index] : searchIndex[candidateIndexes[index]];
+    if (!searchEntryMatches(entry, terms)) continue;
+    insertSearchResult(results, {{
+      node: entry.node,
+      score: searchScore(entry, terms, normalized)
+    }}, limit);
+  }}
+  return results;
+}}
+
+function closeSearchResults() {{
+  if (searchTimer) {{
+    clearTimeout(searchTimer);
+    searchTimer = 0;
+  }}
+  searchResults = [];
+  state.searchActiveIndex = -1;
+  el.searchResults.textContent = "";
+  el.searchResults.hidden = true;
+  el.searchInput.setAttribute("aria-expanded", "false");
+}}
+
+function updateSearchActiveResult() {{
+  el.searchResults.querySelectorAll(".search-result").forEach((row, index) => {{
+    const active = index === state.searchActiveIndex;
+    row.classList.toggle("active", active);
+    row.setAttribute("aria-selected", active ? "true" : "false");
+    if (active) row.scrollIntoView({{ block: "nearest" }});
+  }});
+}}
+
+function renderSearchResultsForQuery(query) {{
+  const normalized = normalizeSearchText(query);
+  el.searchResults.textContent = "";
+  if (!normalized) {{
+    closeSearchResults();
+    return;
+  }}
+
+  searchResults = findSearchMatches(normalized);
+  el.searchResults.hidden = false;
+  el.searchInput.setAttribute("aria-expanded", "true");
+  if (!searchResults.length) {{
+    state.searchActiveIndex = -1;
+    const empty = document.createElement("div");
+    empty.className = "search-empty";
+    empty.textContent = "No matches";
+    el.searchResults.appendChild(empty);
+    return;
+  }}
+
+  state.searchActiveIndex = 0;
+  const fragment = document.createDocumentFragment();
+  searchResults.forEach((match, index) => {{
+    const node = match.node;
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "search-result";
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", index === state.searchActiveIndex ? "true" : "false");
+    row.addEventListener("mousedown", event => event.preventDefault());
+    row.addEventListener("click", () => activateSearchResult(index));
+
+    const main = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "search-result-name";
+    name.textContent = node.name || pathForNode(node);
+    const path = document.createElement("div");
+    path.className = "search-result-path";
+    path.textContent = pathForNode(node);
+    main.append(name, path);
+
+    const meta = document.createElement("div");
+    meta.className = "search-result-meta";
+    meta.textContent = `${{node.type.toUpperCase()}} · ${{formatBytes(node.size)}}`;
+    row.append(main, meta);
+    fragment.appendChild(row);
+  }});
+  el.searchResults.appendChild(fragment);
+  updateSearchActiveResult();
+}}
+
+function scheduleSearchResults() {{
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {{
+    searchTimer = 0;
+    renderSearchResultsForQuery(el.searchInput.value);
+  }}, SEARCH_DEBOUNCE_MS);
+}}
+
+function activateSearchResult(index = state.searchActiveIndex) {{
+  const match = searchResults[index] || searchResults[0];
+  if (!match) return;
+  const node = match.node;
+  closeSearchResults();
+  el.searchInput.blur();
+  const targetDirectory = node.type === "dir" ? node : directoryForNode(node);
+  setCurrent(targetDirectory);
+  if (node.id !== targetDirectory.id) {{
+    setSelected(node);
+    scrollTreeSelectionIntoView(node);
+  }}
+}}
+
+function moveSearchActiveResult(delta) {{
+  if (!searchResults.length) return;
+  state.searchActiveIndex = (state.searchActiveIndex + delta + searchResults.length) % searchResults.length;
+  updateSearchActiveResult();
+}}
+
+function focusSearch() {{
+  if (!DATA) return;
+  el.searchInput.focus();
+  el.searchInput.select();
+  renderSearchResultsForQuery(el.searchInput.value);
+}}
+
+function selectSearchInputText() {{
+  if (el.searchInput.value) el.searchInput.select();
 }}
 
 function ensureListSelection(children) {{
@@ -4162,6 +4515,9 @@ function prepareReportData(root) {{
   byId.clear();
   byPath.clear();
   parent.clear();
+  searchIndex.length = 0;
+  searchCandidateIndex.clear();
+  closeSearchResults();
   nextNodeId = 0;
   DATA = root;
   walk(DATA, null);
@@ -4226,6 +4582,32 @@ el.mainResizer.addEventListener("pointerdown", beginMainResize);
 el.mainResizer.addEventListener("keydown", handleMainResizerKey);
 el.homeResizer.addEventListener("pointerdown", beginHomeResize);
 el.homeResizer.addEventListener("keydown", handleHomeResizerKey);
+el.searchInput.addEventListener("input", scheduleSearchResults);
+el.searchInput.addEventListener("focus", () => renderSearchResultsForQuery(el.searchInput.value));
+el.searchInput.addEventListener("click", selectSearchInputText);
+el.searchInput.addEventListener("keydown", event => {{
+  if (event.key === "ArrowDown") {{
+    event.preventDefault();
+    if (!searchResults.length) renderSearchResultsForQuery(el.searchInput.value);
+    moveSearchActiveResult(1);
+  }} else if (event.key === "ArrowUp") {{
+    event.preventDefault();
+    if (!searchResults.length) renderSearchResultsForQuery(el.searchInput.value);
+    moveSearchActiveResult(-1);
+  }} else if (event.key === "Enter") {{
+    event.preventDefault();
+    if (searchTimer) {{
+      clearTimeout(searchTimer);
+      searchTimer = 0;
+      renderSearchResultsForQuery(el.searchInput.value);
+    }}
+    activateSearchResult();
+  }} else if (event.key === "Escape") {{
+    event.preventDefault();
+    closeSearchResults();
+    el.searchInput.blur();
+  }}
+}});
 el.topFilesLimit.addEventListener("change", event => {{
   state.topFilesLimit = normalizeTopFilesLimit(event.target.value);
   renderHomePanel();
@@ -4240,6 +4622,13 @@ el.treemapTileCap.addEventListener("change", event => {{
 }});
 el.tree.addEventListener("scroll", () => renderVisibleTreeRows(), {{ passive: true }});
 document.addEventListener("click", event => {{
+  if (
+    event.target &&
+    typeof event.target.closest === "function" &&
+    !event.target.closest(".search")
+  ) {{
+    closeSearchResults();
+  }}
   if (
     event.target &&
     typeof event.target.closest === "function" &&
@@ -4377,6 +4766,17 @@ function handleListKey(event) {{
 
 document.addEventListener("keydown", event => {{
   if (event.defaultPrevented) return;
+  if (
+    DATA &&
+    el.helpPage.hidden &&
+    !event.altKey &&
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === "f"
+  ) {{
+    event.preventDefault();
+    focusSearch();
+    return;
+  }}
   if (event.key === "Escape" && !el.helpPage.hidden) {{
     event.preventDefault();
     closeHelpPage();
@@ -4391,6 +4791,11 @@ document.addEventListener("keydown", event => {{
   if (event.key === "?" && !event.ctrlKey && !event.altKey && !event.metaKey) {{
     event.preventDefault();
     openHelpPage();
+    return;
+  }}
+  if (event.key === "/" && !event.ctrlKey && !event.altKey && !event.metaKey) {{
+    event.preventDefault();
+    focusSearch();
     return;
   }}
   if (!DATA) return;
