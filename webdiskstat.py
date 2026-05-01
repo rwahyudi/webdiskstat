@@ -32,6 +32,20 @@ REPORT_SIZE_PLACEHOLDER = "__WEBDISKSTAT_REPORT_SIZE__"
 ENCRYPTION_AAD = b"webdiskstat-report-data-v1"
 ENCRYPTION_ALGORITHM = "ChaCha20-Poly1305"
 PBKDF2_ITERATIONS = 310_000
+FAVICON_SVG = """\
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<rect width="64" height="64" rx="14" fill="#14171c"/>
+<rect x="8" y="10" width="48" height="44" rx="8" fill="#20252c" stroke="#7bd7ff" stroke-width="3"/>
+<rect x="14" y="16" width="20" height="16" rx="3" fill="#65e4c4"/>
+<rect x="38" y="16" width="12" height="16" rx="3" fill="#38bdf8"/>
+<rect x="14" y="36" width="12" height="12" rx="3" fill="#f59e0b"/>
+<rect x="30" y="36" width="20" height="12" rx="3" fill="#60a5fa"/>
+</svg>
+""".strip()
+FAVICON_HREF = (
+    "data:image/svg+xml;base64,"
+    + base64.b64encode(FAVICON_SVG.encode("utf-8")).decode("ascii")
+)
 
 CHILD_KEYS = (
     "items",
@@ -794,6 +808,7 @@ def render_report(root: dict[str, Any], password: str | None = None) -> str:
     generated_iso = generated_at.isoformat(timespec="seconds")
     generated_display = generated_at.strftime("%Y-%m-%d %H:%M:%S %Z")
     escaped_title = html.escape(f"{APP_TITLE} - Generated {generated_display}")
+    escaped_favicon = html.escape(FAVICON_HREF, quote=True)
     security_class = "encrypted" if encrypted_report else "plain"
     security_label = "Data encrypted" if encrypted_report else "Data not encrypted"
     security_title = (
@@ -823,6 +838,7 @@ def render_report(root: dict[str, Any], password: str | None = None) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{escaped_title}</title>
+<link rel="icon" type="image/svg+xml" href="{escaped_favicon}">
 <script>
 try {{
   document.documentElement.dataset.theme = localStorage.getItem("webdiskstat-theme") === "light" ? "light" : "dark";

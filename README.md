@@ -12,7 +12,7 @@ Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML 
 ## Features
 
 - Converts `gdu -o-` JSON by default and supports `ncdu -o-` JSON with `--input-type ncdu`.
-- Reads scanner JSON from stdin, a saved JSON file, or a `.gz` file, and writes a single self-contained disk usage HTML report.
+- Reads scanner JSON from stdin, a saved JSON file, or a `.gz` file, and writes a single self-contained disk usage HTML report with an embedded favicon.
 - Embeds scan data as a gzip-compressed compact string-table payload to keep generated reports smaller.
 - Optionally encrypts embedded scan data with `--password` using PBKDF2-SHA256 and ChaCha20-Poly1305.
 - Encrypted reports prompt for a password in the browser before loading scan data.
