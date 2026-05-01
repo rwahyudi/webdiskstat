@@ -34,12 +34,15 @@ ENCRYPTION_ALGORITHM = "ChaCha20-Poly1305"
 PBKDF2_ITERATIONS = 310_000
 FAVICON_SVG = """\
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<rect width="64" height="64" rx="14" fill="#14171c"/>
-<rect x="8" y="10" width="48" height="44" rx="8" fill="#20252c" stroke="#7bd7ff" stroke-width="3"/>
-<rect x="14" y="16" width="20" height="16" rx="3" fill="#65e4c4"/>
-<rect x="38" y="16" width="12" height="16" rx="3" fill="#38bdf8"/>
-<rect x="14" y="36" width="12" height="12" rx="3" fill="#f59e0b"/>
-<rect x="30" y="36" width="20" height="12" rx="3" fill="#60a5fa"/>
+<rect width="64" height="64" rx="14" fill="#111827"/>
+<path d="M15 12h34l7 17v20a7 7 0 0 1-7 7H15a7 7 0 0 1-7-7V29l7-17Z" fill="#20252c" stroke="#7bd7ff" stroke-width="3" stroke-linejoin="round"/>
+<path d="M9 29h46" stroke="#475569" stroke-width="3"/>
+<rect x="18" y="18" width="24" height="5" rx="2.5" fill="#64748b"/>
+<circle cx="48" cy="20.5" r="2.5" fill="#65e4c4"/>
+<rect x="15" y="35" width="16" height="13" rx="3" fill="#65e4c4"/>
+<rect x="34" y="35" width="9" height="13" rx="3" fill="#38bdf8"/>
+<rect x="46" y="35" width="7" height="13" rx="3" fill="#f59e0b"/>
+<rect x="15" y="51" width="38" height="2" rx="1" fill="#0f172a" opacity=".85"/>
 </svg>
 """.strip()
 FAVICON_HREF = (
