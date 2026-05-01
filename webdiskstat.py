@@ -1023,7 +1023,7 @@ kbd {{
   border-radius: 999px;
   background: color-mix(in srgb, var(--control) 88%, black 12%);
   color: var(--ink);
-  padding: 0 14px;
+  padding: 0 14px 0 46px;
   font-size: 13px;
   box-shadow: var(--shadow-soft);
 }}
@@ -1034,6 +1034,31 @@ kbd {{
   border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
   outline: 0;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent), var(--shadow-soft);
+}}
+.search-shortcut {{
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  z-index: 1;
+  width: 28px;
+  height: 24px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel-2) 70%, black 30%);
+  color: var(--muted);
+  font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}}
+.search:focus-within .search-shortcut,
+.search-shortcut:hover,
+.search-shortcut:focus-visible {{
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 12%, var(--control));
 }}
 .search-results {{
   position: absolute;
@@ -2173,6 +2198,9 @@ html[data-theme="light"] .tree-columns-menu {{
 html[data-theme="light"] .search-input {{
   background: #f8fafc;
 }}
+html[data-theme="light"] .search-shortcut {{
+  background: #eef3f8;
+}}
 html[data-theme="light"] .search-results {{
   background: #ffffff;
   border-color: #cbd5e1;
@@ -2301,6 +2329,7 @@ html[data-theme="light"] .report-security.plain {{
   <header class="toolbar">
     <nav id="crumbs" class="crumbs" aria-label="Path"></nav>
     <div class="search" role="search">
+      <button id="searchShortcut" class="search-shortcut" type="button" title="Focus search (/)" aria-label="Focus search with slash shortcut">/</button>
       <input id="searchInput" class="search-input" type="search" placeholder="Search files and folders" autocomplete="off" aria-label="Search files and folders" aria-controls="searchResults" aria-expanded="false">
       <div id="searchResults" class="search-results" role="listbox" aria-label="Search results" hidden></div>
     </div>
@@ -2965,6 +2994,7 @@ const el = {{
   helpButton: document.getElementById("helpButton"),
   helpPage: document.getElementById("helpPage"),
   helpCloseButton: document.getElementById("helpCloseButton"),
+  searchShortcut: document.getElementById("searchShortcut"),
   searchInput: document.getElementById("searchInput"),
   searchResults: document.getElementById("searchResults"),
   selectedSize: document.getElementById("selectedSize"),
@@ -4601,6 +4631,7 @@ el.mainResizer.addEventListener("pointerdown", beginMainResize);
 el.mainResizer.addEventListener("keydown", handleMainResizerKey);
 el.homeResizer.addEventListener("pointerdown", beginHomeResize);
 el.homeResizer.addEventListener("keydown", handleHomeResizerKey);
+el.searchShortcut.addEventListener("click", focusSearch);
 el.searchInput.addEventListener("input", scheduleSearchResults);
 el.searchInput.addEventListener("focus", () => renderSearchResultsForQuery(el.searchInput.value));
 el.searchInput.addEventListener("click", selectSearchInputText);
