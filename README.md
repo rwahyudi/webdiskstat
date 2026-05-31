@@ -6,8 +6,8 @@ Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML 
 
 ## Requirements
 
-- Go 1.25 or newer to build from source
 - [`gdu`](https://github.com/dundee/gdu) or [`ncdu`](https://dev.yorhel.nl/ncdu)
+- Go 1.25 or newer only when building from source
 
 ## Features
 
@@ -38,22 +38,29 @@ Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML 
 
 ## Download and Install
 
-Clone the repository:
+Download a release package from [GitHub Releases](https://github.com/rwahyudi/webdiskstat/releases/latest).
+
+Linux x86-64:
+
+```sh
+curl -L -o webdiskstat-linux-amd64.tar.gz https://github.com/rwahyudi/webdiskstat/releases/latest/download/webdiskstat-linux-amd64.tar.gz
+tar -xzf webdiskstat-linux-amd64.tar.gz
+install -Dm755 webdiskstat ~/.local/bin/webdiskstat
+```
+
+Windows x86-64 PowerShell:
+
+```powershell
+Invoke-WebRequest -Uri https://github.com/rwahyudi/webdiskstat/releases/latest/download/webdiskstat-windows-amd64.zip -OutFile webdiskstat-windows-amd64.zip
+Expand-Archive .\webdiskstat-windows-amd64.zip -DestinationPath .
+.\webdiskstat.exe --help
+```
+
+To build from source instead:
 
 ```sh
 git clone https://github.com/rwahyudi/webdiskstat.git
 cd webdiskstat
-```
-
-Optional: make it available from your shell path:
-
-```sh
-go install github.com/rwahyudi/webdiskstat@latest
-```
-
-Or build from a local checkout:
-
-```sh
 go build -o webdiskstat .
 install -Dm755 webdiskstat ~/.local/bin/webdiskstat
 ```
