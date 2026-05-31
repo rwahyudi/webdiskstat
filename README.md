@@ -6,7 +6,7 @@ Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML 
 
 ## Requirements
 
-- Python 3.10 or newer
+- Go 1.25 or newer to build from source
 - [`gdu`](https://github.com/dundee/gdu) or [`ncdu`](https://dev.yorhel.nl/ncdu)
 
 ## Features
@@ -23,7 +23,7 @@ Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML 
 - Supports breadcrumb navigation, parent navigation, double-click directory entry, browser back/forward navigation, and bookmarkable URL hashes.
 - Supports keyboard navigation with arrow keys, Page Up, Page Down, Home, End, Enter, Backspace, Escape, `?` help, and sort shortcuts.
 - Includes a sortable directory list, configurable columns, nested treemap tiles, a configurable treemap tile cap, and a biggest-files view.
-- Works as a static report after generation without Python, `gdu`, or `ncdu`.
+- Works as a static report after generation without Go, `gdu`, or `ncdu`.
 
 ## Use Cases
 
@@ -48,7 +48,14 @@ cd webdiskstat
 Optional: make it available from your shell path:
 
 ```sh
-install -Dm755 webdiskstat.py ~/.local/bin/webdiskstat
+go install github.com/rwahyudi/webdiskstat@latest
+```
+
+Or build from a local checkout:
+
+```sh
+go build -o webdiskstat .
+install -Dm755 webdiskstat ~/.local/bin/webdiskstat
 ```
 
 ## Quick Start
@@ -56,7 +63,7 @@ install -Dm755 webdiskstat.py ~/.local/bin/webdiskstat
 Generate a `gdu` web report:
 
 ```sh
-gdu -o- /path/to/scan | ./webdiskstat.py -o diskstats.html
+gdu -o- /path/to/scan | ./webdiskstat -o diskstats.html
 ```
 
 Open `diskstats.html` in a browser.
@@ -64,20 +71,20 @@ Open `diskstats.html` in a browser.
 Generate an `ncdu` web report:
 
 ```sh
-ncdu -o- /path/to/scan | ./webdiskstat.py --input-type ncdu -o diskstats.html
+ncdu -o- /path/to/scan | ./webdiskstat --input-type ncdu -o diskstats.html
 ```
 
 Generate a disk usage HTML report from a saved scanner export:
 
 ```sh
 gdu -o report.json /path/to/scan
-./webdiskstat.py report.json -o diskstats.html
+./webdiskstat report.json -o diskstats.html
 ```
 
 Read a compressed scanner export:
 
 ```sh
-./webdiskstat.py report.json.gz -o diskstats.html
+./webdiskstat report.json.gz -o diskstats.html
 ```
 
 ## Example
@@ -91,7 +98,7 @@ The included example uses 83,000 generated files across 12 uneven top-level work
 ## Options
 
 ```text
-usage: webdiskstat.py [-h] [--input-type {gdu,ncdu}] [-o OUTPUT] [--password PASSWORD] [input]
+usage: webdiskstat [--input-type gdu|ncdu] [-o OUTPUT] [--password PASSWORD] [input]
 ```
 
 - `input`: scanner JSON file, `.gz` file, or `-` for stdin. Defaults to stdin.
@@ -106,7 +113,7 @@ Running the script without piped input or an input file prints the usage instruc
 Encrypt the embedded report data with `--password`:
 
 ```sh
-./webdiskstat.py report.json -o diskstats.html --password 'choose-a-strong-password'
+./webdiskstat report.json -o diskstats.html --password 'choose-a-strong-password'
 ```
 
 ## Interface
@@ -142,7 +149,7 @@ Encrypt the embedded report data with `--password`:
 
 ## Compression and Security
 
-The output is a static browser disk usage report. After generation, it does not need Python, `gdu`, or `ncdu` to view the report.
+The output is a static browser disk usage report. After generation, it does not need Go, `gdu`, or `ncdu` to view the report.
 
 - Scan data is normalized into a compact string-table payload, gzip-compressed, embedded in the HTML, and expanded by the browser when the report loads.
 - The generated file is a compressed HTML disk usage report rather than a server-backed web app.
