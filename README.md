@@ -1,23 +1,28 @@
-# webdiskstat - gdu and ncdu web disk usage viewer
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="webdiskstat turns gdu or ncdu JSON into a static browser disk usage report">
+</p>
 
-`webdiskstat` converts JSON from [`gdu -o-`](https://github.com/dundee/gdu) or [`ncdu -o-`](https://dev.yorhel.nl/ncdu) into a self-contained disk usage HTML report you can open in a browser. It works as a lightweight `gdu` web UI and `ncdu` web viewer with a WinDirStat-style directory list, browser treemap, navigation, optional compression, and optional encryption. [Try the live example report](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html) to see the browser UI before generating your own.
+# webdiskstat
 
-Use it to view `gdu` output in a browser, share `ncdu` results as a static HTML report, or publish an offline disk usage treemap without running a web server.
+`webdiskstat` converts JSON from [`gdu -o-`](https://github.com/dundee/gdu) or [`ncdu -o-`](https://dev.yorhel.nl/ncdu) into a self-contained disk usage HTML report you can open in a browser. It gives scanner output a WinDirStat-style directory list, browser treemap, search, keyboard navigation, a compressed embedded payload, and optional password encryption without running a web server.
+
+[Try the live example report](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html) before generating your own.
+
+## See It
+
+![gdu and ncdu web disk usage HTML report showing a browser treemap, directory list, details panel, and encrypted data footer](docs/assets/webdiskstat-screenshot.png)
+
+The included example uses 83,000 generated files across 12 uneven top-level workspaces and 4 loose root files, including one workspace with 12,000 direct files, so it exercises large-directory navigation and search.
 
 ## Quick Start
 
-Generate a `gdu` web report:
+Generate a `gdu` report:
 
 ```sh
 gdu -o- /path/to/scan | webdiskstat -o diskstats.html
 ```
 
-Open `diskstats.html` in a browser.
-[webdiskstat example](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html).
-
-## Screenshot
-
-![gdu and ncdu web disk usage HTML report showing a browser treemap, directory list, details panel, and encrypted data footer](docs/assets/webdiskstat-screenshot.png)
+Open `diskstats.html` in a browser. The report is a static HTML file, so it can be viewed offline or shared as a single artifact.
 
 ## Download and Install
 
@@ -41,30 +46,16 @@ Expand-Archive .\webdiskstat-windows-amd64.zip -DestinationPath .
 
 ## Features
 
-- Converts `gdu -o-` JSON by default and supports `ncdu -o-` JSON with `--input-type ncdu`.
-- Reads scanner JSON from stdin, a saved JSON file, or a `.gz` file, and writes a single self-contained disk usage HTML report with an embedded favicon.
-- Embeds scan data as a gzip-compressed compact string-table payload to keep generated reports smaller.
-- Optionally encrypts embedded scan data with `--password` using PBKDF2-SHA256 and ChaCha20-Poly1305.
-- Encrypted reports prompt for a password in the browser before loading scan data.
-- Encrypted reports use Web Crypto when available and include a JavaScript fallback for `file://` and other non-HTTPS schemes.
-- Shows an encrypted or unencrypted data indicator in the footer.
-- Virtualizes large directory listings so directories with thousands of entries remain responsive.
-- Includes global search backed by a prebuilt index for quickly jumping to files or directories.
-- Supports breadcrumb navigation, parent navigation, double-click directory entry, browser back/forward navigation, and bookmarkable URL hashes.
-- Supports keyboard navigation with arrow keys, Page Up, Page Down, Home, End, Enter, Backspace, Escape, `?` help, and sort shortcuts.
-- Includes a sortable directory list, configurable columns, nested treemap tiles, a configurable treemap tile cap, and a biggest-files view.
-- Works as a static report after generation without Go, `gdu`, or `ncdu`.
+| Area | What it does |
+| --- | --- |
+| Inputs | Reads `gdu -o-` JSON by default, `ncdu -o-` JSON with `--input-type ncdu`, stdin, saved JSON files, and `.gz` exports. |
+| Output | Writes one self-contained HTML disk usage report with embedded scan data and favicon. |
+| Browser UI | Provides sortable columns, configurable visible columns, nested treemap tiles, breadcrumb navigation, browser back/forward support, bookmarkable URL hashes, and a biggest-files view. |
+| Scale | Virtualizes large directory listings and builds a global search index for quickly jumping to files or directories. |
+| Security | Can encrypt embedded scan data with `--password` using PBKDF2-SHA256 and ChaCha20-Poly1305. Encrypted reports prompt for the password in the browser. |
+| Offline use | Generated reports work as static files after generation without Go, `gdu`, `ncdu`, or a web server. |
 
-## Use Cases
-
-- View `gdu` output in a browser as a static disk usage report.
-- Share `ncdu` results as a self-contained HTML report.
-- Generate an offline browser treemap for a directory scan without running a web server.
-- Create an encrypted disk usage report when scan paths or metadata are sensitive.
-
-
-
-## Example : 
+## More Examples
 
 Generate an `ncdu` web report:
 
@@ -84,17 +75,6 @@ Read a compressed scanner export:
 ```sh
 ./webdiskstat report.json.gz -o diskstats.html
 ```
-
-## Report Example
-
-Open the included sample report in the repository: [example/report.html](example/report.html).
-
-Preview it in a browser through HTMLPreview: [webdiskstat example report](https://htmlpreview.github.io/?https://github.com/rwahyudi/webdiskstat/blob/main/example/report.html).
-
-The included example uses 83,000 generated files across 12 uneven top-level workspaces and 4 loose root files, including one workspace with 12,000 direct files and three desktop-style user workspaces, so it exercises large-directory navigation and search.
-
-
-
 
 ## Options
 
@@ -117,23 +97,7 @@ Encrypt the embedded report data with `--password`:
 ./webdiskstat report.json -o diskstats.html --password 'choose-a-strong-password'
 ```
 
-## Compile From Source 
-
-### Requirements
-
-- [`gdu`](https://github.com/dundee/gdu) or [`ncdu`](https://dev.yorhel.nl/ncdu)
-- Go 1.25 or newer
-
-
-### Building from source:
-
-```sh
-git clone https://github.com/rwahyudi/webdiskstat.git
-cd webdiskstat
-go build -o webdiskstat .
-install -Dm755 webdiskstat ~/.local/bin/webdiskstat
-```
-
+Encrypted reports use Web Crypto when available and include a JavaScript fallback for `file://` and other non-HTTPS schemes. Unencrypted reports disclose the scan metadata embedded in the HTML, and encrypted reports still depend on password strength.
 
 ## Interface
 
@@ -142,21 +106,16 @@ install -Dm755 webdiskstat ~/.local/bin/webdiskstat
 - Optional columns can be shown or hidden from the column settings button next to the Name header.
 - The toolbar search finds files and directories across the whole report and jumps to the selected result.
 - The treemap shows the current directory, including nested subdirectories and files inside larger directory tiles when space allows.
-- The treemap shows up to the selected Max Tiles Depth entries per directory before grouping additional entries as smaller entries.
-- The divider between the directory list and right panel can be dragged to resize the right panel.
 - The home view shows a smaller treemap and a framed biggest-files list.
-- The biggest-files list can show 10 to 50 entries and scrolls when the list is taller than the pane.
-- The home view divider can be dragged to resize the treemap and biggest-files list.
-- Double-click a listed file to jump to the directory containing that file.
 - Details show size, percentage, type, extension, item count, file count, and modified time when the scan data provides it.
-- The Help button in the toolbar, or the `?` shortcut, explains features, mouse actions, keyboard shortcuts, and navigation.
+- The Help button in the toolbar, or the `?` shortcut, explains mouse actions, keyboard shortcuts, and navigation.
 
 ## Navigation
 
 - Breadcrumbs, the parent button, and browser back/forward move between directories.
 - Use the search box, `/`, or `Ctrl+F` to find files and directories across the report.
 - Double-click a directory row or treemap tile to enter it.
-- Double-click a biggest-files row to jump to the directory containing that file.
+- Double-click a file or biggest-files row to jump to the directory containing that file.
 - The URL hash changes as you navigate, so directory views are bookmarkable.
 - `Arrow Up` / `Arrow Down`: move selection in the directory list.
 - `Page Up` / `Page Down`: move selection by one visible page.
@@ -168,13 +127,24 @@ install -Dm755 webdiskstat ~/.local/bin/webdiskstat
 
 ## Compression and Security
 
-The output is a static browser disk usage report. After generation, it does not need Go, `gdu`, or `ncdu` to view the report.
+The generated report embeds scan data as a compact string-table payload that is gzip-compressed before being stored in the HTML.
 
-- Scan data is normalized into a compact string-table payload, gzip-compressed, embedded in the HTML, and expanded by the browser when the report loads.
-- The generated file is a compressed HTML disk usage report rather than a server-backed web app.
 - Viewing generated reports requires a browser with the standard `DecompressionStream` API.
-- Encrypted disk usage reports prompt for the password before loading scan data.
+- Encrypted reports show an encrypted data indicator in the footer and prompt for the password before loading scan data.
 - Encryption uses PBKDF2-SHA256 key derivation and ChaCha20-Poly1305 payload encryption.
 - Reports use the browser Web Crypto API when available and include a slower JavaScript fallback for `file://` and other non-HTTPS schemes.
 - Unencrypted reports disclose the scan metadata embedded in the HTML.
-- Encrypted reports still depend on password strength, and command-line passwords may be visible in shell history or process lists.
+- Command-line passwords may be visible in shell history or process lists.
+
+## Build From Source
+
+### Requirements
+
+- Go 1.25 or newer
+
+```sh
+git clone https://github.com/rwahyudi/webdiskstat.git
+cd webdiskstat
+go build -o webdiskstat .
+install -Dm755 webdiskstat ~/.local/bin/webdiskstat
+```

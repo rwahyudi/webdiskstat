@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">webdiskstat</title>
+  <desc id="desc">A Go command line tool that turns gdu or ncdu JSON into a static browser disk usage report.</desc>
+  <defs>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#101620"/>
+      <stop offset="1" stop-color="#172033"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1">
+      <stop offset="0" stop-color="#66e3c4"/>
+      <stop offset="1" stop-color="#8ab4ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" rx="30" fill="#080b12"/>
+  <rect x="28" y="28" width="1144" height="304" rx="24" fill="url(#panel)" stroke="#26344f"/>
+
+  <g transform="translate(70 68)">
+    <text x="0" y="0" fill="#66e3c4" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="700" letter-spacing="2">GDU / NCDU TO STATIC HTML</text>
+    <text x="0" y="70" fill="#f6f8fb" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="72" font-weight="800">webdiskstat</text>
+    <text x="0" y="116" fill="#c7d0df" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="600">Generate one offline disk usage report</text>
+    <text x="0" y="156" fill="#97a6bd" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22">WinDirStat-style directory list, browser treemap, search,</text>
+    <text x="0" y="186" fill="#97a6bd" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="22">navigation, compression, and optional password encryption.</text>
+    <g transform="translate(0 226)">
+      <rect width="470" height="42" rx="10" fill="#05070c" stroke="#2a3854"/>
+      <text x="18" y="27" fill="#dbe7f6" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17">gdu -o- /path | webdiskstat -o report.html</text>
+    </g>
+  </g>
+
+  <g transform="translate(690 66)">
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" font-weight="700">
+      <rect x="0" y="0" width="128" height="54" rx="14" fill="#0b101a" stroke="#31415f"/>
+      <text x="22" y="34" fill="#f6f8fb">gdu -o-</text>
+      <rect x="0" y="96" width="128" height="54" rx="14" fill="#0b101a" stroke="#31415f"/>
+      <text x="18" y="130" fill="#f6f8fb">ncdu -o-</text>
+      <path d="M142 27 C190 27 190 81 236 81" fill="none" stroke="#66e3c4" stroke-width="4" stroke-linecap="round"/>
+      <path d="M142 123 C190 123 190 81 236 81" fill="none" stroke="#8ab4ff" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="238" cy="81" r="7" fill="#f6f8fb"/>
+    </g>
+
+    <g transform="translate(258 10)">
+      <rect width="320" height="222" rx="18" fill="#060912" stroke="#415473"/>
+      <rect x="0" y="0" width="320" height="38" rx="18" fill="#101827"/>
+      <circle cx="23" cy="19" r="5" fill="#ff6b6b"/>
+      <circle cx="43" cy="19" r="5" fill="#ffd166"/>
+      <circle cx="63" cy="19" r="5" fill="#66e3c4"/>
+      <text x="94" y="24" fill="#8fa2bc" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">report.html</text>
+
+      <g transform="translate(18 58)">
+        <rect width="108" height="134" rx="10" fill="#101827" stroke="#273852"/>
+        <rect x="12" y="16" width="68" height="8" rx="4" fill="#8ab4ff"/>
+        <rect x="12" y="40" width="84" height="7" rx="3.5" fill="#53667f"/>
+        <rect x="12" y="62" width="58" height="7" rx="3.5" fill="#53667f"/>
+        <rect x="12" y="84" width="76" height="7" rx="3.5" fill="#53667f"/>
+        <rect x="12" y="106" width="46" height="7" rx="3.5" fill="#53667f"/>
+      </g>
+
+      <g transform="translate(146 58)">
+        <rect width="78" height="82" rx="8" fill="#66e3c4"/>
+        <rect x="86" y="0" width="58" height="48" rx="8" fill="#8ab4ff"/>
+        <rect x="86" y="56" width="58" height="78" rx="8" fill="#44607f"/>
+        <rect x="0" y="90" width="38" height="44" rx="8" fill="#ffd166"/>
+        <rect x="46" y="90" width="32" height="44" rx="8" fill="#ef476f"/>
+      </g>
+    </g>
+
+    <g transform="translate(258 254)" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14" fill="#9fb0c8">
+      <text x="0" y="0">stdin/file/.gz</text>
+      <text x="126" y="0" fill="#66e3c4">gzip payload</text>
+      <text x="258" y="0" fill="#8ab4ff">optional encryption</text>
+    </g>
+  </g>
+</svg>
