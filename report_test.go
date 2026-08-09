@@ -34,6 +34,25 @@ func TestReportIncludesMaterialFileIconSupport(t *testing.T) {
 	}
 }
 
+func TestReportUsesColorfulTreemapFavicon(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `<link rel="icon" type="image/svg+xml" href="` + faviconDataURI() + `">`
+	if !strings.Contains(report, want) {
+		t.Fatal("report does not contain the embedded webdiskstat favicon")
+	}
+	for _, color := range []string{"#0ea5e9", "#8b5cf6", "#22c55e", "#f97316", "#ec4899"} {
+		if !strings.Contains(faviconSVG, color) {
+			t.Fatalf("favicon is missing treemap color %q", color)
+		}
+	}
+	if count := strings.Count(report, `<link rel="icon"`); count != 1 {
+		t.Fatalf("report has %d favicon links, want 1", count)
+	}
+}
+
 func TestMaterialFileIconLookupUsesFilenameBeforeMIME(t *testing.T) {
 	report, err := renderReport(&Node{
 		Name: "root",
@@ -119,13 +138,79 @@ func TestTreeColumnsCanBeResized(t *testing.T) {
 	}
 }
 
+func TestColumnSettingsUsesDistinctColumnIcon(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{
+		`icon column-settings-icon`,
+		`frame.setAttribute("width", "19");`,
+		`"M8.5 4v16"`,
+		`"M10.5 14h2.5"`,
+		`button.title = "Column settings";`,
+	} {
+		if !strings.Contains(report, needle) {
+			t.Fatalf("report missing column settings icon code %q", needle)
+		}
+	}
+	if strings.Contains(report, `"M4 5h16"`) {
+		t.Fatal("report still contains the generic grid icon")
+	}
+}
+
+func TestThemeSwitcherUsesSingleCelestialControl(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{
+		`theme-switch theme-switcher-v2`,
+		`class="moon-star"`,
+		`.theme-switch.theme-switcher-v2{width:36px;height:36px`,
+		`.theme-input:checked+.theme-switcher-v2 .sun-icon`,
+		`const nextTheme = normalized === "light" ? "dark" : "light";`,
+		`aria-label="Switch to light theme"`,
+		`@media(prefers-reduced-motion:reduce)`,
+	} {
+		if !strings.Contains(report, needle) {
+			t.Fatalf("report missing theme switcher code %q", needle)
+		}
+	}
+	if strings.Contains(report, `<span class="theme-knob"></span>`) {
+		t.Fatal("report still renders the old sliding theme knob")
+	}
+}
+
+func TestEnteringDirectoryFocusesFirstBrowserRow(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{
+		`function setCurrent(node, updateUrl = true, focusFirstRow = false)`,
+		`if (focusFirstRow) focusFirstTreeRow();`,
+		`function focusFirstTreeRow()`,
+		`const first = currentTreeChildren()[0];`,
+		`el.tree.scrollTop = 0;`,
+		`row.focus({ preventScroll: true });`,
+		`setCurrent(state.selected, true, true);`,
+		`if (child.type === "dir") setCurrent(child, true, true);`,
+		`if (node.type === "dir") setCurrent(node, true, true);`,
+	} {
+		if !strings.Contains(report, needle) {
+			t.Fatalf("report missing first-row focus behavior %q", needle)
+		}
+	}
+}
+
 func TestTreeColumnsHaveSubtleSeparators(t *testing.T) {
 	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, needle := range []string{
-		`.tree-header-cell.with-separator,.row>*:not(:last-child){box-shadow:1px 0 0 color-mix(in srgb,var(--line) 30%,transparent)}`,
+		`.tree-header-cell.with-separator{box-shadow:1px 0 0 color-mix(in srgb,var(--line) 68%,transparent)}.row>*:not(:last-child){box-shadow:1px 0 0 color-mix(in srgb,var(--line) 30%,transparent)}`,
 		`const columns = visibleTreeColumns();`,
 		`column.hasSeparator = index < columns.length - 1;`,
 		`if (column.hasSeparator) cell.classList.add("with-separator");`,
@@ -250,7 +335,7 @@ func TestTreemapInnerBordersAreSubtle(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, needle := range []string{
-		`box-shadow:inset 0 0 0 1px rgba(255,255,255,0.48),inset 0 0 0 999px rgba(255,255,255,0.08)`,
+		`box-shadow:inset 0 0 0 1px rgba(255,255,255,0.40),inset 0 0 0 999px rgba(255,255,255,0.04)`,
 		`.tile-children{position:absolute;overflow:hidden;border-radius:2px}`,
 		`.tile.nested{border-width:.5px;border-radius:2px}`,
 	} {
@@ -277,15 +362,26 @@ func TestTreemapUsesMIMETypeColors(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, needle := range []string{
+		`const TREEMAP_DIRECTORY_COLORS = [`,
+		`"#2563EB", "#4F46E5", "#7C3AED", "#A21CAF"`,
+		`"#65A30D", "#16A34A", "#0D9488", "#0891B2"`,
 		`const TREEMAP_MIME_COLORS = new Map([`,
-		`["image", "hsl(197, 76%, 43%)"]`,
+		`["image", "#0EA5E9"]`,
+		`["video", "#8B5CF6"]`,
+		`["audio", "#EC4899"]`,
+		`["code", "#14B8A6"]`,
+		`["archive", "#F97316"]`,
+		`["document", "#3B82F6"]`,
+		`["binary", "#64748B"]`,
 		`["application/pdf", "pdf"]`,
 		`const treemapMimeWeightsCache = new WeakMap();`,
 		`function treemapMimeCategoryForFile(node)`,
 		`function treemapMimeWeightsForNode(node)`,
 		`function dominantTreemapMimeCategory(node)`,
-		`const category = node.type === "dir" ? dominantTreemapMimeCategory(node) : treemapMimeCategoryForFile(node);`,
-		`return node.type === "dir" ? directoryTreemapColorFor(node) : colorFor(node);`,
+		`function directoryTreemapBranch(node)`,
+		`if (node.type === "dir") return directoryTreemapColorFor(node);`,
+		`const category = treemapMimeCategoryForFile(node);`,
+		`.tile-label{background:linear-gradient(90deg,rgba(2,6,23,.56)`,
 	} {
 		if !strings.Contains(report, needle) {
 			t.Fatalf("report missing MIME treemap color code %q", needle)
@@ -296,20 +392,74 @@ func TestTreemapUsesMIMETypeColors(t *testing.T) {
 	}
 }
 
-func TestReportDisablesSearchAboveFileLimit(t *testing.T) {
+func TestReportUsesLazyMemoryBudgetedSearch(t *testing.T) {
 	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, needle := range []string{
-		"const SEARCH_FILE_DISABLE_LIMIT = 1000000;",
-		"function countReportFiles(root)",
-		"Search disabled for reports over 1,000,000 files",
-		"if (!searchDisabled) searchIndex.push(entry);",
-		"if (!searchDisabled) scheduleSearchCandidateIndexBuild();",
+		"const SEARCH_INDEX_FILE_LIMIT = 5000000;",
+		"const SEARCH_INDEX_CHARACTER_LIMIT = 512000000;",
+		"Search disabled for reports over 5,000,000 files",
+		"setSearchAvailability(counts.files);",
+		"function scheduleSearchIndexBuild()",
+		"Preparing memory-efficient search...",
+		`if (node.type === "dir") byPath.set(node.path || node.name, node);`,
+		"searchIndex.push(node);",
+		`REPORT_DATA_PAYLOAD.payload = "";`,
+		"materialIconCache.size > 256",
+		"let hiddenSize = 0;",
 	} {
 		if !strings.Contains(report, needle) {
 			t.Fatalf("report missing %q", needle)
 		}
+	}
+	for _, obsolete := range []string{
+		"const byId = new Map();",
+		"const parent = new Map();",
+		"const searchCandidateIndex = new Map();",
+		"function countReportFiles(root)",
+		"function scheduleSearchCandidateIndexBuild()",
+		"const hidden = entries.slice(entryLimit);",
+	} {
+		if strings.Contains(report, obsolete) {
+			t.Fatalf("report still contains memory-heavy code %q", obsolete)
+		}
+	}
+	if count := strings.Count(report, "scheduleSearchIndexBuild();"); count != 1 {
+		t.Fatalf("search index build is scheduled %d times, want one on-demand call", count)
+	}
+}
+
+func TestReportUsesLocalAssetsAndAccessibleControls(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{
+		`TOP_FILE_INDEX_LIMIT = 50`,
+		`function enhanceReportAccessibility()`,
+		`element.setAttribute("role", "button");`,
+		`el.searchInput.setAttribute("role", "combobox");`,
+		`id="reportPasswordDialog"`,
+		`function requestReportPassword()`,
+		`const password = await requestReportPassword();`,
+		`Couldn't copy. Select the path manually.`,
+		`background:linear-gradient(135deg,#fbbf24,#f59e0b)`,
+	} {
+		if !strings.Contains(report, needle) {
+			t.Fatalf("report missing %q", needle)
+		}
+	}
+	for _, remoteAsset := range []string{
+		"https://cdn-icons-png.flaticon.com",
+		"https://img.icons8.com",
+	} {
+		if strings.Contains(report, remoteAsset) {
+			t.Fatalf("report still contains remote asset %q", remoteAsset)
+		}
+	}
+	if strings.Contains(report, "window.prompt") {
+		t.Fatal("report still uses the unmasked native password prompt")
 	}
 }

@@ -1,22 +1,32 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 const appTitle = "webdiskstat"
 
 var (
-	generatedTitlePattern = regexp.MustCompile(`<title>.*?</title>`)
-	generatedTimePattern  = regexp.MustCompile(`<time class="generated" datetime="[^"]*">Generated .*?</time>`)
-	reportSizePattern     = regexp.MustCompile(`HTML file: [^<]+`)
-	latoFontFacePattern   = regexp.MustCompile(`@font-face\{font-family:Lato;[^}]+\}(@font-face\{font-family:Lato;[^}]+\})?`)
-	robotoFontFacePattern = regexp.MustCompile(`@font-face\{font-family:"Roboto Mono";[^}]+\}(@font-face\{font-family:"Roboto Mono";[^}]+\})?`)
-	merriFontFacePattern  = regexp.MustCompile(`@font-face\{font-family:Merriweather;[^}]+\}(@font-face\{font-family:Merriweather;[^}]+\})?`)
+	generatedTitlePattern  = regexp.MustCompile(`<title>.*?</title>`)
+	generatedTimePattern   = regexp.MustCompile(`<time class="generated" datetime="[^"]*">Generated .*?</time>`)
+	reportSizePattern      = regexp.MustCompile(`HTML file: [^<]+`)
+	faviconLinkPattern     = regexp.MustCompile(`<link rel="icon"[^>]*>`)
+	passwordPromptPattern  = regexp.MustCompile(`const password = window\.prompt\([^;]+\);`)
+	latoFontFacePattern    = regexp.MustCompile(`@font-face\{font-family:Lato;[^}]+\}(@font-face\{font-family:Lato;[^}]+\})?`)
+	robotoFontFacePattern  = regexp.MustCompile(`@font-face\{font-family:"Roboto Mono";[^}]+\}(@font-face\{font-family:"Roboto Mono";[^}]+\})?`)
+	merriFontFacePattern   = regexp.MustCompile(`@font-face\{font-family:Merriweather;[^}]+\}(@font-face\{font-family:Merriweather;[^}]+\})?`)
+	reportTemplateOnce     sync.Once
+	preparedReportTemplate string
 )
+
+//go:embed assets/favicon.svg
+var faviconSVG string
 
 func renderReport(root *Node, password *string) (string, error) {
 	payload, err := reportDataPayload(root, password)
@@ -38,30 +48,42 @@ func renderReport(root *Node, password *string) (string, error) {
 }
 
 func optimizedReportTemplate() string {
-	report := reportTemplate
-	report = replaceEmbeddedFonts(report)
-	report = replaceReportDataLoader(report)
-	report = replaceSearchIndexBuild(report)
-	report = replaceFolderIcon(report)
-	report = replaceMaterialFileIcons(report)
-	report = replaceBreadcrumbControls(report)
-	report = replaceTreemapStyles(report)
-	report = replaceTreemapMimeColors(report)
-	report = replaceTreeColumnResizing(report)
-	report = replaceTreeColumnSeparators(report)
-	report = replaceTreeTableFontSize(report)
-	if !strings.Contains(report, "  topFiles: [],") {
-		report = strings.Replace(
-			report,
-			"  topFilesLimit: 10,\n  treemapTileCap: DEFAULT_TREEMAP_TILE_CAP,",
-			"  topFilesLimit: 10,\n  topFiles: [],\n  treemapTileCap: DEFAULT_TREEMAP_TILE_CAP,",
-			1,
-		)
-	}
-	if !strings.Contains(report, "function buildTopFilesIndex(root)") {
-		report = strings.Replace(
-			report,
-			`function collectFiles(node, files) {
+	reportTemplateOnce.Do(func() {
+		report := reportTemplate
+		report = replaceFavicon(report)
+		report = replaceEmbeddedFonts(report)
+		report = replaceReportDataLoader(report)
+		if !strings.Contains(report, "const SEARCH_INDEX_NODE_LIMIT = 500000;") &&
+			!strings.Contains(report, "const SEARCH_INDEX_FILE_LIMIT = 5000000;") {
+			report = replaceSearchIndexBuild(report)
+		}
+		report = replaceFolderIcon(report)
+		report = replaceMaterialFileIcons(report)
+		report = replaceBreadcrumbControls(report)
+		report = replaceColumnSettingsIcon(report)
+		report = replaceThemeSwitcher(report)
+		report = replaceDirectoryEntryFocus(report)
+		report = replacePasswordDialog(report)
+		report = replaceReportAccessibility(report)
+		report = replaceTreemapStyles(report)
+		report = replaceTreemapMimeColors(report)
+		report = replaceTreemapPalette(report)
+		report = replaceTreeColumnResizing(report)
+		report = replaceTreeColumnSeparators(report)
+		report = replaceTreeTableFontSize(report)
+		report = replaceBrowserMemoryUsage(report)
+		if !strings.Contains(report, "  topFiles: [],") {
+			report = strings.Replace(
+				report,
+				"  topFilesLimit: 10,\n  treemapTileCap: DEFAULT_TREEMAP_TILE_CAP,",
+				"  topFilesLimit: 10,\n  topFiles: [],\n  treemapTileCap: DEFAULT_TREEMAP_TILE_CAP,",
+				1,
+			)
+		}
+		if !strings.Contains(report, "function buildTopFilesIndex(root)") {
+			report = strings.Replace(
+				report,
+				`function collectFiles(node, files) {
   if (node.type !== "dir") {
     if (node.size > 0) files.push(node);
     return;
@@ -69,7 +91,7 @@ func optimizedReportTemplate() string {
   (node.children || []).forEach(child => collectFiles(child, files));
 }
 `,
-			`function collectFiles(node, files) {
+				`function collectFiles(node, files) {
   if (node.type !== "dir") {
     if (node.size > 0) files.push(node);
     return;
@@ -84,33 +106,236 @@ function buildTopFilesIndex(root) {
   return files;
 }
 `,
-			1,
-		)
-	}
-	report = strings.Replace(
-		report,
-		`  const files = [];
+				1,
+			)
+		}
+		report = strings.Replace(
+			report,
+			`  const files = [];
   collectFiles(DATA, files);
   files.sort((a, b) => b.size - a.size);
   state.topFilesLimit = normalizeTopFilesLimit(state.topFilesLimit);`,
-		`  const files = state.topFiles;
+			`  const files = state.topFiles;
   state.topFilesLimit = normalizeTopFilesLimit(state.topFilesLimit);`,
-		1,
-	)
-	if !strings.Contains(report, "  state.topFiles = buildTopFilesIndex(DATA);") {
-		report = strings.Replace(
-			report,
-			`  DATA = root;
+			1,
+		)
+		if !strings.Contains(report, "  state.topFiles = buildTopFilesIndex(DATA);") {
+			report = strings.Replace(
+				report,
+				`  DATA = root;
   walk(DATA, null);
   state.current = DATA;`,
-			`  DATA = root;
+				`  DATA = root;
   walk(DATA, null);
   state.topFiles = buildTopFilesIndex(DATA);
   state.current = DATA;`,
-			1,
-		)
+				1,
+			)
+		}
+		preparedReportTemplate = replaceTopFilesIndex(report)
+	})
+	return preparedReportTemplate
+}
+
+func faviconDataURI() string {
+	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(faviconSVG))
+}
+
+func replaceFavicon(report string) string {
+	link := `<link rel="icon" type="image/svg+xml" href="` + faviconDataURI() + `">`
+	if faviconLinkPattern.MatchString(report) {
+		return faviconLinkPattern.ReplaceAllString(report, link)
 	}
+	return strings.Replace(report, `</head>`, link+`</head>`, 1)
+}
+
+func replaceColumnSettingsIcon(report string) string {
+	const previous = `function makeColumnsIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  [
+    "M4 5h16",
+    "M4 12h16",
+    "M4 19h16",
+    "M8 5v14",
+    "M16 5v14"
+  ].forEach(d => {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+`
+	const replacement = `function makeColumnsIcon() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "icon column-settings-icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  const frame = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  frame.setAttribute("x", "2.5");
+  frame.setAttribute("y", "4");
+  frame.setAttribute("width", "19");
+  frame.setAttribute("height", "16");
+  frame.setAttribute("rx", "2");
+  svg.appendChild(frame);
+  [
+    "M8.5 4v16",
+    "M15 4v16",
+    "M4.5 9h2",
+    "M10.5 14h2.5",
+    "M17 10h2.5"
+  ].forEach(d => {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+`
+	return strings.Replace(report, previous, replacement, 1)
+}
+
+func replaceThemeSwitcher(report string) string {
+	if strings.Contains(report, `theme-switcher-v2`) {
+		return report
+	}
+	const previous = `<label class="theme-toggle" title="Toggle light theme"><input id="themeToggle" class="theme-input" type="checkbox" role="switch" aria-label="Light theme"><span class="theme-switch" aria-hidden="true"><svg class="theme-icon moon-icon" viewBox="0 0 24 24"><path d="M20 14.7A7.5 7.5 0 0 1 9.3 4a8 8 0 1 0 10.7 10.7Z"/></svg><svg class="theme-icon sun-icon" viewBox="0 0 24 24"><path d="M12 3v2"/><path d="M12 19v2"/><path d="m4.22 4.22 1.42 1.42"/><path d="m18.36 18.36 1.42 1.42"/><path d="M3 12h2"/><path d="M19 12h2"/><path d="m4.22 19.78 1.42-1.42"/><path d="m18.36 5.64 1.42-1.42"/><circle cx="12" cy="12" r="4"/></svg><span class="theme-knob"></span></span></label>`
+	const replacement = `<label class="theme-toggle" title="Switch to light theme"><input id="themeToggle" class="theme-input" type="checkbox" role="switch" aria-label="Switch to light theme"><span class="theme-switch theme-switcher-v2" aria-hidden="true"><svg class="theme-icon moon-icon" viewBox="0 0 24 24"><path d="M19.4 15.2A7.5 7.5 0 0 1 8.8 4.6a8 8 0 1 0 10.6 10.6Z"/><path class="moon-star" d="M17.5 5.5h.01M20 8.5h.01"/></svg><svg class="theme-icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.25"/><path d="M12 2.75v2.1M12 19.15v2.1M5.46 5.46l1.49 1.49M17.05 17.05l1.49 1.49M2.75 12h2.1M19.15 12h2.1M5.46 18.54l1.49-1.49M17.05 6.95l1.49-1.49"/></svg></span></label>`
+	report = strings.Replace(report, previous, replacement, 1)
+	const css = `.theme-switch.theme-switcher-v2{width:36px;height:36px;display:grid;place-items:center;padding:0;overflow:hidden;border:1px solid #3b5268;border-radius:50%;background:linear-gradient(145deg,#223244 0%,#111820 78%);color:#8dd8ff;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 2px 5px rgba(0,0,0,.22);transition:transform 160ms ease,border-color 160ms ease,background 180ms ease,box-shadow 180ms ease}.theme-switcher-v2::before{content:"";position:absolute;inset:4px;border-radius:50%;background:radial-gradient(circle,rgba(56,189,248,.2) 0%,rgba(56,189,248,0) 70%);transition:background 180ms ease,transform 180ms ease}.theme-switcher-v2 .theme-icon{position:absolute;width:18px;height:18px;z-index:1;opacity:1;stroke:currentColor;stroke-width:1.9;transform-origin:center;transition:opacity 170ms ease,transform 220ms cubic-bezier(.2,.8,.2,1),color 180ms ease}.theme-switcher-v2 .moon-icon{color:#9bddff;transform:rotate(0) scale(1)}.theme-switcher-v2 .moon-star{stroke-width:3.2;stroke-linecap:round}.theme-switcher-v2 .sun-icon{color:#f59e0b;opacity:0;transform:rotate(-55deg) scale(.5)}.theme-input:checked+.theme-switcher-v2{border-color:#d6b75d;background:linear-gradient(145deg,#fffdf4 0%,#f5e8b8 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 5px rgba(71,51,12,.14)}.theme-input:checked+.theme-switcher-v2::before{background:radial-gradient(circle,rgba(251,191,36,.25) 0%,rgba(251,191,36,0) 72%);transform:scale(1.08)}.theme-input:checked+.theme-switcher-v2 .moon-icon{opacity:0;transform:rotate(45deg) scale(.5)}.theme-input:checked+.theme-switcher-v2 .sun-icon,html[data-theme="light"] .theme-input:checked+.theme-switcher-v2 .sun-icon{color:#d97706;opacity:1;transform:rotate(0) scale(1)}.theme-toggle:hover .theme-switcher-v2,html[data-theme="light"] .theme-toggle:hover .theme-switcher-v2{transform:translateY(-1px);border-color:var(--accent);background:linear-gradient(145deg,#fffdf4 0%,#f5e8b8 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 4px 9px rgba(0,0,0,.18)}html[data-theme="dark"] .theme-toggle:hover .theme-switcher-v2{background:linear-gradient(145deg,#293d52 0%,#151e28 78%)}.theme-input:focus-visible+.theme-switcher-v2{outline:2px solid var(--accent);outline-offset:2px}@media(prefers-reduced-motion:reduce){.theme-switcher-v2,.theme-switcher-v2::before,.theme-switcher-v2 .theme-icon{transition:none}}`
+	report = strings.Replace(report, `</style>`, css+`</style>`, 1)
+	report = strings.Replace(
+		report,
+		`  el.themeToggle.checked = normalized === "light";
+  el.themeToggle.setAttribute("aria-checked", String(el.themeToggle.checked));`,
+		`  el.themeToggle.checked = normalized === "light";
+  el.themeToggle.setAttribute("aria-checked", String(el.themeToggle.checked));
+  const nextTheme = normalized === "light" ? "dark" : "light";
+  const themeLabel = el.themeToggle.closest(".theme-toggle");
+  el.themeToggle.setAttribute("aria-label", "Switch to " + nextTheme + " theme");
+  if (themeLabel) themeLabel.title = "Switch to " + nextTheme + " theme";`,
+		1,
+	)
 	return report
+}
+
+func replaceDirectoryEntryFocus(report string) string {
+	if strings.Contains(report, `function focusFirstTreeRow()`) {
+		return report
+	}
+	report = strings.Replace(
+		report,
+		`function setCurrent(node, updateUrl = true) {
+  if (!node) return;
+  state.current = node;
+  state.selected = node;
+  if (updateUrl) syncUrlToCurrent(node);
+  renderSafely();
+}`,
+		`function setCurrent(node, updateUrl = true, focusFirstRow = false) {
+  if (!node) return;
+  state.current = node;
+  state.selected = node;
+  if (updateUrl) syncUrlToCurrent(node);
+  renderSafely();
+  if (focusFirstRow) focusFirstTreeRow();
+}`,
+		1,
+	)
+	const focusFunction = `function focusFirstTreeRow() {
+  const first = currentTreeChildren()[0];
+  if (!first) return;
+  state.selected = first;
+  el.tree.scrollTop = 0;
+  renderVisibleTreeRows(true);
+  renderDetails();
+  requestAnimationFrame(() => {
+    const row = el.tree.querySelector('.row[data-id="' + first.id + '"]');
+    if (!row) return;
+    row.tabIndex = 0;
+    row.classList.add("active");
+    row.focus({ preventScroll: true });
+    row.scrollIntoView({ block: "nearest" });
+  });
+}
+
+`
+	report = strings.Replace(report, `function setListSelectionByIndex(index) {`, focusFunction+`function setListSelectionByIndex(index) {`, 1)
+	report = strings.ReplaceAll(report, `if (child.type === "dir") setCurrent(child);`, `if (child.type === "dir") setCurrent(child, true, true);`)
+	report = strings.ReplaceAll(report, `if (node.type === "dir") setCurrent(node);`, `if (node.type === "dir") setCurrent(node, true, true);`)
+	report = strings.Replace(
+		report,
+		`  if (parentNode) setCurrent(parentNode);`,
+		`  if (parentNode) setCurrent(parentNode, true, true);`,
+		1,
+	)
+	report = strings.Replace(
+		report,
+		`    setCurrent(state.selected);`,
+		`    setCurrent(state.selected, true, true);`,
+		1,
+	)
+	return report
+}
+
+func replaceTopFilesIndex(report string) string {
+	const previous = `function buildTopFilesIndex(root) {
+  const files = [];
+  collectFiles(root, files);
+  files.sort((a, b) => b.size - a.size);
+  return files;
+}
+`
+	const replacement = `const TOP_FILE_INDEX_LIMIT = 50;
+
+function buildTopFilesIndex(root) {
+  const heap = [];
+  const swap = (left, right) => ([heap[left], heap[right]] = [heap[right], heap[left]]);
+  const siftUp = index => {
+    while (index > 0) {
+      const parent = Math.floor((index - 1) / 2);
+      if (heap[parent].size <= heap[index].size) break;
+      swap(parent, index);
+      index = parent;
+    }
+  };
+  const siftDown = index => {
+    while (true) {
+      const left = index * 2 + 1;
+      const right = left + 1;
+      let smallest = index;
+      if (left < heap.length && heap[left].size < heap[smallest].size) smallest = left;
+      if (right < heap.length && heap[right].size < heap[smallest].size) smallest = right;
+      if (smallest === index) return;
+      swap(index, smallest);
+      index = smallest;
+    }
+  };
+  const add = node => {
+    if (!node || node.size <= 0) return;
+    if (heap.length < TOP_FILE_INDEX_LIMIT) {
+      heap.push(node);
+      siftUp(heap.length - 1);
+    } else if (node.size > heap[0].size) {
+      heap[0] = node;
+      siftDown(0);
+    }
+  };
+  const stack = root ? [root] : [];
+  while (stack.length) {
+    const node = stack.pop();
+    if (node.type !== "dir") {
+      add(node);
+      continue;
+    }
+    const children = node.children || [];
+    for (let index = 0; index < children.length; index++) stack.push(children[index]);
+  }
+  return heap.sort((a, b) => b.size - a.size);
+}
+`
+	return strings.Replace(report, previous, replacement, 1)
 }
 
 func replaceTreeTableFontSize(report string) string {
@@ -122,7 +347,7 @@ func replaceTreeTableFontSize(report string) string {
 }
 
 func replaceTreeColumnSeparators(report string) string {
-	const separatorCSS = `.tree-header-cell.with-separator,.row>*:not(:last-child){box-shadow:1px 0 0 color-mix(in srgb,var(--line) 30%,transparent)}`
+	const separatorCSS = `.tree-header-cell.with-separator{box-shadow:1px 0 0 color-mix(in srgb,var(--line) 68%,transparent)}.row>*:not(:last-child){box-shadow:1px 0 0 color-mix(in srgb,var(--line) 30%,transparent)}`
 	if !strings.Contains(report, separatorCSS) {
 		report = strings.Replace(report, `.tree-column-resizer{`, separatorCSS+`.tree-column-resizer{`, 1)
 	}
@@ -527,12 +752,123 @@ function treemapColorForLegacy(node) {`,
 	)
 }
 
+func replaceTreemapPalette(report string) string {
+	replacer := strings.NewReplacer(
+		`["image", "hsl(197, 76%, 43%)"]`, `["image", "#0EA5E9"]`,
+		`["video", "hsl(270, 58%, 50%)"]`, `["video", "#8B5CF6"]`,
+		`["audio", "hsl(316, 62%, 48%)"]`, `["audio", "#EC4899"]`,
+		`["text", "hsl(148, 52%, 38%)"]`, `["text", "#22C55E"]`,
+		`["code", "hsl(168, 68%, 34%)"]`, `["code", "#14B8A6"]`,
+		`["pdf", "hsl(0, 68%, 50%)"]`, `["pdf", "#EF4444"]`,
+		`["archive", "hsl(36, 80%, 46%)"]`, `["archive", "#F97316"]`,
+		`["document", "hsl(218, 58%, 49%)"]`, `["document", "#3B82F6"]`,
+		`["data", "hsl(44, 78%, 45%)"]`, `["data", "#EAB308"]`,
+		`["binary", "hsl(220, 11%, 46%)"]`, `["binary", "#64748B"]`,
+		`["font", "hsl(186, 48%, 39%)"]`, `["font", "#06B6D4"]`,
+		`["image", "#005F88"]`, `["image", "#0EA5E9"]`,
+		`["video", "#5B3F9B"]`, `["video", "#8B5CF6"]`,
+		`["audio", "#9B2C6B"]`, `["audio", "#EC4899"]`,
+		`["text", "#16734B"]`, `["text", "#22C55E"]`,
+		`["code", "#006B70"]`, `["code", "#14B8A6"]`,
+		`["pdf", "#B3261E"]`, `["pdf", "#EF4444"]`,
+		`["archive", "#8A5700"]`, `["archive", "#F97316"]`,
+		`["document", "#245DA6"]`, `["document", "#3B82F6"]`,
+		`["data", "#765600"]`, `["data", "#EAB308"]`,
+		`["binary", "#4B5563"]`, `["binary", "#64748B"]`,
+		`["font", "#176078"]`, `["font", "#06B6D4"]`,
+		`const TREEMAP_SMALLER_ENTRIES_COLOR = "#64748b";`, `const TREEMAP_SMALLER_ENTRIES_COLOR = "#475569";`,
+		`const TREEMAP_SMALLER_ENTRIES_COLOR = "#1E293B";`, `const TREEMAP_SMALLER_ENTRIES_COLOR = "#475569";`,
+	)
+	report = replacer.Replace(report)
+	const directoryPalette = `const TREEMAP_DIRECTORY_COLORS = [
+  "#2563EB", "#4F46E5", "#7C3AED", "#A21CAF",
+  "#DB2777", "#E11D48", "#EA580C", "#D97706",
+  "#65A30D", "#16A34A", "#0D9488", "#0891B2"
+];`
+	report = strings.Replace(report, `const TREEMAP_DIRECTORY_COLOR = "#1E293B";`, directoryPalette, 1)
+	if !strings.Contains(report, `const TREEMAP_DIRECTORY_COLORS = [`) {
+		report = strings.Replace(
+			report,
+			`const TREEMAP_MIME_COLORS = new Map([`,
+			directoryPalette+`
+const TREEMAP_MIME_COLORS = new Map([`,
+			1,
+		)
+	}
+	report = strings.Replace(
+		report,
+		`function directoryTreemapColorFor(node) {
+  const hash = hashString(pathForNode(node) || node.name || String(node.id));
+  const hue = 176 + (hash % 26);
+  const saturation = 52 + (Math.floor(hash / 29) % 18);
+  const lightness = 28 + (Math.floor(hash / 521) % 24);
+  return `+"`hsl(${hue}, ${saturation}%, ${lightness}%)`"+`;
+}`,
+		`function directoryTreemapBranch(node) {
+  let branch = node;
+  let ancestor = parent.get(branch.id);
+  while (ancestor && ancestor !== DATA) {
+    branch = ancestor;
+    ancestor = parent.get(branch.id);
+  }
+  return branch;
+}
+
+function directoryTreemapColorFor(node) {
+  const branch = directoryTreemapBranch(node);
+  const hash = hashString(pathForNode(branch) || branch.name || String(branch.id));
+  const base = TREEMAP_DIRECTORY_COLORS[Math.abs(hash) % TREEMAP_DIRECTORY_COLORS.length];
+  const relativeDepth = Math.max(0, (node.depth || 0) - (branch.depth || 0));
+  const blend = Math.min(18, relativeDepth * 4);
+  if (!blend) return base;
+  const mix = relativeDepth % 2 ? "white" : "black";
+  return `+"`color-mix(in srgb, ${base} ${100 - blend}%, ${mix} ${blend}%)`"+`;
+}`,
+		1,
+	)
+	report = strings.Replace(
+		report,
+		`function treemapColorFor(node) {
+  if (node.ext === "[other]") return TREEMAP_SMALLER_ENTRIES_COLOR;
+  const category = node.type === "dir" ? dominantTreemapMimeCategory(node) : treemapMimeCategoryForFile(node);
+  if (category && TREEMAP_MIME_COLORS.has(category)) return TREEMAP_MIME_COLORS.get(category);
+  return node.type === "dir" ? directoryTreemapColorFor(node) : colorFor(node);
+}`,
+		`function treemapColorFor(node) {
+  if (node.ext === "[other]") return TREEMAP_SMALLER_ENTRIES_COLOR;
+  if (node.type === "dir") return directoryTreemapColorFor(node);
+  const category = treemapMimeCategoryForFile(node);
+  if (category && TREEMAP_MIME_COLORS.has(category)) return TREEMAP_MIME_COLORS.get(category);
+  return colorFor(node);
+}`,
+		1,
+	)
+	report = strings.ReplaceAll(report, `rgba(2,6,23,.64) 0%,rgba(2,6,23,.32) 72%`, `rgba(2,6,23,.56) 0%,rgba(2,6,23,.20) 72%`)
+	const labelCSS = `.tile-label{background:linear-gradient(90deg,rgba(2,6,23,.56) 0%,rgba(2,6,23,.20) 72%,transparent 100%);border-radius:3px;text-shadow:0 1px 2px rgba(0,0,0,.7)}`
+	if !strings.Contains(report, labelCSS) {
+		report = strings.Replace(report, `</style>`, labelCSS+`</style>`, 1)
+	}
+	return report
+}
+
 func replaceTreemapStyles(report string) string {
 	report = strings.ReplaceAll(
 		report,
 		`box-shadow:inset 0 0 0 2px rgba(255,255,255,0.58),inset 0 0 0 999px rgba(255,255,255,0.10)`,
-		`box-shadow:inset 0 0 0 1px rgba(255,255,255,0.48),inset 0 0 0 999px rgba(255,255,255,0.08)`,
+		`box-shadow:inset 0 0 0 1px rgba(255,255,255,0.40),inset 0 0 0 999px rgba(255,255,255,0.04)`,
 	)
+	report = strings.ReplaceAll(
+		report,
+		`box-shadow:inset 0 0 0 1px rgba(255,255,255,0.48),inset 0 0 0 999px rgba(255,255,255,0.08)`,
+		`box-shadow:inset 0 0 0 1px rgba(255,255,255,0.40),inset 0 0 0 999px rgba(255,255,255,0.04)`,
+	)
+	report = strings.ReplaceAll(
+		report,
+		`color-mix(in srgb,var(--tile-color,#0f766e) 82%,white 18%)`,
+		`color-mix(in srgb,var(--tile-color,#1E293B) 90%,white 10%)`,
+	)
+	report = strings.ReplaceAll(report, `var(--tile-color,#0f766e) 45%`, `var(--tile-color,#1E293B) 45%`)
+	report = strings.ReplaceAll(report, `var(--tile-color,#0f766e) 60%`, `var(--tile-color,#1E293B) 60%`)
 	report = strings.ReplaceAll(
 		report,
 		`.tile-children{position:absolute;overflow:hidden;border-radius:5px}`,
@@ -713,24 +1049,26 @@ function makeParentHeaderButton() {
 }
 
 func replaceBreadcrumbControls(report string) string {
-	const copyIconURL = "https://cdn-icons-png.flaticon.com/512/1250/1250607.png"
+	const copyIconSVG = `<svg class="copy-path-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`
+	const remoteCopyIcon = `<img class="copy-path-icon" src="https://cdn-icons-png.flaticon.com/512/1250/1250607.png" alt="" aria-hidden="true">`
 	if !strings.Contains(report, `class="pathbar"`) {
 		report = strings.Replace(
 			report,
 			`<nav id="crumbs" class="crumbs" aria-label="Path"></nav><div class="search"`,
-			`<div class="pathbar"><nav id="crumbs" class="crumbs" aria-label="Path"></nav><button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path" hidden><img class="copy-path-icon" src="`+copyIconURL+`" alt="" aria-hidden="true"></button></div><div class="search"`,
+			`<div class="pathbar"><nav id="crumbs" class="crumbs" aria-label="Path"></nav><button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path" hidden>`+copyIconSVG+`</button></div><div class="search"`,
 			1,
 		)
 	}
+	report = strings.ReplaceAll(report, remoteCopyIcon, copyIconSVG)
 	report = strings.ReplaceAll(
 		report,
 		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>`,
-		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path" hidden><img class="copy-path-icon" src="`+copyIconURL+`" alt="" aria-hidden="true"></button>`,
+		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path" hidden>`+copyIconSVG+`</button>`,
 	)
 	report = strings.ReplaceAll(
 		report,
-		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path"><img class="copy-path-icon" src="`+copyIconURL+`" alt="" aria-hidden="true"></button>`,
-		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path" hidden><img class="copy-path-icon" src="`+copyIconURL+`" alt="" aria-hidden="true"></button>`,
+		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path">`+copyIconSVG+`</button>`,
+		`<button id="copyPathButton" class="copy-path-btn" type="button" title="Copy current path" aria-label="Copy current path" hidden>`+copyIconSVG+`</button>`,
 	)
 	if !strings.Contains(report, ".pathbar{") {
 		report = strings.Replace(
@@ -1271,7 +1609,7 @@ function makeCopyPathButton(path, label = "Copy path") {
   button.setAttribute("aria-label", label);
   const icon = document.createElement("img");
   icon.className = "inline-copy-path-icon";
-  icon.src = "`+copyIconURL+`";
+  icon.src = "https://cdn-icons-png.flaticon.com/512/1250/1250607.png";
   icon.alt = "";
   icon.setAttribute("aria-hidden", "true");
   button.appendChild(icon);
@@ -1511,10 +1849,46 @@ el.helpButton.addEventListener("click", openHelpPage);`,
 			1,
 		)
 	}
+	report = strings.ReplaceAll(report, `.copy-path-btn{width:22px;height:22px;`, `.copy-path-btn{width:24px;height:24px;`)
+	report = strings.ReplaceAll(report, `.inline-copy-path-btn{width:18px;height:18px;`, `.inline-copy-path-btn{width:24px;height:24px;`)
+	report = strings.ReplaceAll(
+		report,
+		`  const icon = document.createElement("img");
+  icon.className = "inline-copy-path-icon";
+  icon.src = "https://cdn-icons-png.flaticon.com/512/1250/1250607.png";
+  icon.alt = "";
+  icon.setAttribute("aria-hidden", "true");`,
+		`  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.classList.add("inline-copy-path-icon");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';`,
+	)
+	report = strings.ReplaceAll(report, `  } catch (error) {
+    console.error(error);
+  }
+}
+
+function makeCopyPathButton`, `  } catch (error) {
+    showCopyPathMessage(button, "Couldn't copy. Select the path manually.");
+  }
+}
+
+function makeCopyPathButton`)
 	return report
 }
 
 func replaceFolderIcon(report string) string {
+	report = strings.ReplaceAll(
+		report,
+		`.row.dir .swatch{width:18px;height:18px;margin-top:0;border-radius:0;position:relative;background:transparent url("https://img.icons8.com/?size=100&id=Vps0Nsl80v4P&format=png&color=000000") center/contain no-repeat;box-shadow:none}`,
+		`.row.dir .swatch{width:18px;height:14px;margin-top:2px;border-radius:2px;position:relative;background:linear-gradient(135deg,#fbbf24,#f59e0b);box-shadow:inset 0 0 0 1px rgba(0,0,0,0.16)}`,
+	)
+	report = strings.ReplaceAll(
+		report,
+		`.row.dir .swatch::before{content:none}`,
+		`.row.dir .swatch::before{content:"";position:absolute;left:1px;top:-4px;width:8px;height:5px;border-radius:2px 2px 0 0;background:#fbbf24;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12)}`,
+	)
 	report = strings.Replace(
 		report,
 		`.row.dir .swatch{width:13px;height:9px;margin-top:3px;border-radius:2px;position:relative}`,
@@ -1528,6 +1902,115 @@ func replaceFolderIcon(report string) string {
 		1,
 	)
 	return report
+}
+
+func replaceReportAccessibility(report string) string {
+	const marker = `function enhanceReportAccessibility()`
+	if strings.Contains(report, marker) {
+		return report
+	}
+	const css = `@media(max-width:720px){.toolbar{height:auto;min-height:48px;flex-wrap:wrap;padding:8px}.pathbar{flex:1 1 100%;order:1}.search{flex:1 1 100%;order:3}.tools{order:2}.tree-header{font-size:11px}.row{font-size:13px}.row-kind{font-size:10px}.row-count,.row-size,.row-modified,.row-pct{font-size:12px}.tree-column-resizer{width:18px;right:-9px}.top-file-row{padding:12px}.detail-card{padding:14px}}.row:focus-visible,.tile:focus-visible,.top-file-row:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}`
+	report = strings.Replace(report, `</style>`, css+`</style>`, 1)
+	const script = `
+function enhanceReportAccessibility() {
+  const selector = ".row,.tile,.top-file-row";
+  const prepare = element => {
+    if (element.dataset.webdiskstatAccessibility) return;
+    element.dataset.webdiskstatAccessibility = "1";
+    element.tabIndex = 0;
+    element.setAttribute("role", "button");
+    if (!element.getAttribute("aria-label")) {
+      element.setAttribute("aria-label", (element.textContent || "Open item").trim().slice(0, 200));
+    }
+    element.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      event.stopPropagation();
+      element.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+  };
+  const prepareChildren = root => {
+    if (root.nodeType !== Node.ELEMENT_NODE) return;
+    if (root.matches(selector)) prepare(root);
+    root.querySelectorAll(selector).forEach(prepare);
+  };
+  prepareChildren(document.body);
+  new MutationObserver(records => {
+    records.forEach(record => record.addedNodes.forEach(prepareChildren));
+  }).observe(document.body, { childList: true, subtree: true });
+  el.searchInput.setAttribute("role", "combobox");
+  el.searchInput.setAttribute("aria-autocomplete", "list");
+  el.helpPage.setAttribute("role", "dialog");
+  el.helpPage.setAttribute("aria-modal", "true");
+  let helpTrigger = null;
+  el.helpButton.addEventListener("click", () => { helpTrigger = document.activeElement; });
+  new MutationObserver(() => {
+    if (el.helpPage.hidden && helpTrigger && document.contains(helpTrigger)) helpTrigger.focus();
+  }).observe(el.helpPage, { attributes: true, attributeFilter: ["hidden"] });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Tab" || el.helpPage.hidden) return;
+    const focusable = Array.from(el.helpPage.querySelectorAll("button,[href],input,select,textarea,[tabindex]:not([tabindex='-1'])")).filter(node => !node.disabled && !node.hidden);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, true);
+}
+enhanceReportAccessibility();
+`
+	return strings.Replace(report, `
+initReport();
+</script>`, script+`
+initReport();
+</script>`, 1)
+}
+
+func replacePasswordDialog(report string) string {
+	if strings.Contains(report, `id="reportPasswordDialog"`) {
+		return report
+	}
+	const dialog = `<dialog id="reportPasswordDialog" class="password-dialog" aria-labelledby="reportPasswordTitle" aria-describedby="reportPasswordDescription"><form id="reportPasswordForm" method="dialog" class="password-dialog-panel"><h2 id="reportPasswordTitle">Unlock report</h2><p id="reportPasswordDescription">Enter the password used when this report was generated. It is used only to decrypt this report in your browser.</p><label for="reportPasswordInput">Password</label><input id="reportPasswordInput" type="password" autocomplete="current-password" required><p id="reportPasswordError" class="password-dialog-error" role="alert" hidden></p><div class="password-dialog-actions"><button type="button" id="reportPasswordCancel">Cancel</button><button type="submit" value="unlock">Unlock</button></div></form></dialog>`
+	const css = `.password-dialog{width:min(420px,calc(100vw - 32px));padding:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}.password-dialog::backdrop{background:rgba(2,6,23,.72)}.password-dialog-panel{display:grid;gap:12px;padding:22px}.password-dialog-panel h2,.password-dialog-panel p{margin:0}.password-dialog-panel label{font-size:13px;font-weight:700}.password-dialog-panel input{min-height:42px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--control);color:var(--ink);font:inherit}.password-dialog-error{color:#f87171;font-size:13px}.password-dialog-actions{display:flex;justify-content:flex-end;gap:8px}.password-dialog-actions button{min-height:36px;padding:7px 12px;border:1px solid var(--line);border-radius:6px;background:var(--control);color:var(--ink);font:inherit;font-weight:700;cursor:pointer}.password-dialog-actions button[type="submit"]{border-color:var(--accent);background:var(--accent);color:#fff}`
+	report = strings.Replace(report, `<body>`, `<body>`+dialog, 1)
+	report = strings.Replace(report, `</style>`, css+`</style>`, 1)
+	const request = `function requestReportPassword() {
+  const dialog = document.getElementById("reportPasswordDialog");
+  const form = document.getElementById("reportPasswordForm");
+  const input = document.getElementById("reportPasswordInput");
+  const error = document.getElementById("reportPasswordError");
+  const cancel = document.getElementById("reportPasswordCancel");
+  return new Promise((resolve, reject) => {
+    const close = () => {
+      if (dialog.returnValue === "unlock") resolve(input.value);
+      else reject(new Error("Password entry cancelled."));
+    };
+    const submit = event => {
+      if (input.value) return;
+      event.preventDefault();
+      error.hidden = false;
+      error.textContent = "Enter the report password to continue.";
+      input.focus();
+    };
+    const cancelDialog = () => dialog.close("cancel");
+    dialog.addEventListener("close", close, { once: true });
+    form.addEventListener("submit", submit, { once: true });
+    cancel.addEventListener("click", cancelDialog, { once: true });
+    input.value = "";
+    error.hidden = true;
+    dialog.showModal();
+    input.focus();
+  });
+}
+
+`
+	report = strings.Replace(report, `async function decryptReportPayload`, request+`async function decryptReportPayload`, 1)
+	return passwordPromptPattern.ReplaceAllString(report, `const password = await requestReportPassword();`)
 }
 
 func replaceReportDataLoader(report string) string {
@@ -1820,12 +2303,12 @@ func replaceSearchIndexBuild(report string) string {
 			1,
 		)
 	}
-	if !strings.Contains(report, "const SEARCH_FILE_DISABLE_LIMIT = 1000000;") {
+	if !strings.Contains(report, "const SEARCH_FILE_DISABLE_LIMIT = 2000000;") {
 		report = strings.Replace(
 			report,
 			`const SEARCH_TRIGRAM_SIZE = 3;`,
 			`const SEARCH_TRIGRAM_SIZE = 3;
-const SEARCH_FILE_DISABLE_LIMIT = 1000000;`,
+const SEARCH_FILE_DISABLE_LIMIT = 2000000;`,
 			1,
 		)
 	}
@@ -1918,7 +2401,7 @@ function setSearchAvailability(fileCount) {
   el.searchInput.disabled = searchDisabled;
   el.searchInput.value = searchDisabled ? "" : el.searchInput.value;
   el.searchInput.placeholder = searchDisabled
-    ? "Search disabled for reports over 1,000,000 files"
+    ? "Search disabled for reports over 2,000,000 files"
     : "Search files and folders";
   el.searchInput.setAttribute("aria-disabled", String(searchDisabled));
   if (el.searchShortcut) {
@@ -2044,6 +2527,363 @@ function walk(node, parentNode, depth = 0) {`,
 		)
 	}
 	return report
+}
+
+func replaceBrowserMemoryUsage(report string) string {
+	if strings.Contains(report, "const SEARCH_INDEX_FILE_LIMIT = 5000000;") {
+		return report
+	}
+	if strings.Contains(report, "const SEARCH_INDEX_NODE_LIMIT = 500000;") {
+		return strings.NewReplacer(
+			`const SEARCH_INDEX_NODE_LIMIT = 500000;`, `const SEARCH_INDEX_FILE_LIMIT = 5000000;`,
+			`const SEARCH_INDEX_CHARACTER_LIMIT = 32000000;`, `const SEARCH_INDEX_CHARACTER_LIMIT = 512000000;`,
+			`function setSearchAvailability(nodeCount) {`, `function setSearchAvailability(fileCount) {`,
+			`if (nodeCount > SEARCH_INDEX_NODE_LIMIT) {`, `if (fileCount > SEARCH_INDEX_FILE_LIMIT) {`,
+			`Search disabled for reports over 500,000 entries`, `Search disabled for reports over 5,000,000 files`,
+			`setSearchAvailability(counts.total);`, `setSearchAvailability(counts.files);`,
+		).Replace(report)
+	}
+	report = replaceMemorySearchSetup(report)
+	report = replaceMemorySearchFunctions(report)
+	report = replaceMemoryRuntime(report)
+	return report
+}
+
+func replaceMemorySearchSetup(report string) string {
+	report = strings.Replace(
+		report,
+		`const SEARCH_RESULT_LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 80;
+const SEARCH_TRIGRAM_SIZE = 3;
+const SEARCH_FILE_DISABLE_LIMIT = 2000000;`,
+		`const SEARCH_RESULT_LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 120;
+const SEARCH_INDEX_FILE_LIMIT = 5000000;
+const SEARCH_INDEX_CHARACTER_LIMIT = 512000000;`,
+		1,
+	)
+	report = replaceReportSection(
+		report,
+		`const byId = new Map();`,
+		`const treeView = {`,
+		`const byPath = new Map();
+const searchIndex = [];
+let searchResults = [];
+let searchTimer = 0;
+let searchIndexBuilt = false;
+let searchIndexBuilding = false;
+let searchIndexCharacters = 0;
+let searchDisabled = false;
+let nextNodeId = 0;
+`,
+	)
+	const searchBuild = `function nodeParent(node) {
+  return node ? node.parentNode || null : null;
+}
+
+function setSearchUnavailable(message) {
+  searchDisabled = true;
+  searchIndex.length = 0;
+  searchIndexBuilt = false;
+  searchIndexBuilding = false;
+  closeSearchResults();
+  el.searchInput.disabled = true;
+  el.searchInput.value = "";
+  el.searchInput.placeholder = message;
+  el.searchInput.setAttribute("aria-disabled", "true");
+  if (el.searchShortcut) {
+    el.searchShortcut.disabled = true;
+    el.searchShortcut.setAttribute("aria-disabled", "true");
+  }
+}
+
+function setSearchAvailability(fileCount) {
+  if (fileCount > SEARCH_INDEX_FILE_LIMIT) {
+    setSearchUnavailable("Search disabled for reports over 5,000,000 files");
+    return;
+  }
+  searchDisabled = false;
+  el.searchInput.disabled = false;
+  el.searchInput.placeholder = "Search files and folders";
+  el.searchInput.setAttribute("aria-disabled", "false");
+  if (el.searchShortcut) {
+    el.searchShortcut.disabled = false;
+    el.searchShortcut.setAttribute("aria-disabled", "false");
+  }
+}
+
+function renderSearchStatus(message) {
+  el.searchResults.textContent = "";
+  el.searchResults.hidden = false;
+  el.searchInput.setAttribute("aria-expanded", "true");
+  const status = document.createElement("div");
+  status.className = "search-empty";
+  status.setAttribute("role", "status");
+  status.textContent = message;
+  el.searchResults.appendChild(status);
+}
+
+function scheduleSearchIndexBuild() {
+  if (searchDisabled || searchIndexBuilt || searchIndexBuilding || !DATA) return;
+  searchIndexBuilding = true;
+  searchIndex.length = 0;
+  searchIndexCharacters = 0;
+  const stack = [DATA];
+  const schedule = callback => {
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(callback, { timeout: 1000 });
+    } else {
+      setTimeout(() => callback({ timeRemaining: () => 8 }), 0);
+    }
+  };
+  const buildChunk = deadline => {
+    const started = performance.now();
+    while (
+      stack.length &&
+      ((deadline && deadline.timeRemaining && deadline.timeRemaining() > 2) || performance.now() - started < 8)
+    ) {
+      const node = stack.pop();
+      searchIndexCharacters += String(node.name || "").length + String(node.path || "").length + String(node.ext || "").length;
+      if (searchIndexCharacters > SEARCH_INDEX_CHARACTER_LIMIT) {
+        setSearchUnavailable("Search disabled: report exceeds the memory budget");
+        return;
+      }
+      searchIndex.push(node);
+      const children = node.children || [];
+      for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]);
+    }
+    if (stack.length) {
+      schedule(buildChunk);
+      return;
+    }
+    searchIndexBuilt = true;
+    searchIndexBuilding = false;
+    if (el.searchInput.value) renderSearchResultsForQuery(el.searchInput.value);
+  };
+  schedule(buildChunk);
+}
+
+`
+	report = replaceReportSection(report, `function searchTrigrams(value) {`, `function walk(node, parentNode, depth = 0) {`, searchBuild)
+	report = strings.Replace(
+		report,
+		`  byId.set(node.id, node);
+  byPath.set(node.path || node.name, node);
+  parent.set(node.id, parentNode);
+  addSearchIndexEntry(node);`,
+		`  node.parentNode = parentNode;
+  if (node.type === "dir") byPath.set(node.path || node.name, node);`,
+		1,
+	)
+	report = strings.ReplaceAll(report, `parent.get(branch.id)`, `nodeParent(branch)`)
+	report = strings.ReplaceAll(report, `parent.get(state.current.id)`, `nodeParent(state.current)`)
+	report = strings.ReplaceAll(report, `parent.get(node.id)`, `nodeParent(node)`)
+	report = strings.ReplaceAll(report, `parent.get(cursor.id)`, `nodeParent(cursor)`)
+	return report
+}
+
+func replaceMemorySearchFunctions(report string) string {
+	const searchFunctions = `function searchValues(node) {
+  const nameLower = normalizeSearchText(node.name || "");
+  const pathLower = normalizeSearchText(pathForNode(node));
+  const extLower = normalizeSearchText(node.ext || "");
+  return { nameLower, pathLower, extLower };
+}
+
+function searchValuesMatch(values, terms) {
+  for (let index = 0; index < terms.length; index++) {
+    const term = terms[index];
+    if (!values.nameLower.includes(term) && !values.pathLower.includes(term) && !values.extLower.includes(term)) return false;
+  }
+  return true;
+}
+
+function searchScore(node, values, terms, query) {
+  let score = node.type === "dir" ? 0 : 6;
+  if (values.nameLower === query) {
+    score -= 80;
+  } else if (values.nameLower.startsWith(query)) {
+    score -= 60;
+  } else if (values.pathLower.endsWith("/" + query)) {
+    score -= 45;
+  } else if (values.nameLower.includes(query)) {
+    score -= 30;
+  }
+  terms.forEach(term => {
+    const nameIndex = values.nameLower.indexOf(term);
+    if (nameIndex === 0) {
+      score -= 10;
+    } else if (nameIndex > 0) {
+      score += nameIndex / 24;
+    } else {
+      const pathIndex = values.pathLower.indexOf(term);
+      score += pathIndex >= 0 ? 12 + pathIndex / 80 : 40;
+    }
+  });
+  score += Math.min(16, node.depth || 0);
+  score -= Math.min(18, Math.log2((node.size || 0) + 1));
+  return score;
+}
+
+function insertSearchResult(results, candidate, limit) {
+  if (results.length >= limit && candidate.score >= results[results.length - 1].score) return;
+  let index = results.length;
+  while (index > 0 && candidate.score < results[index - 1].score) index--;
+  results.splice(index, 0, candidate);
+  if (results.length > limit) results.pop();
+}
+
+function findSearchMatches(query, limit = SEARCH_RESULT_LIMIT) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized || searchDisabled || !searchIndexBuilt) return [];
+  const terms = normalized.split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const results = [];
+  for (let index = 0; index < searchIndex.length; index++) {
+    const node = searchIndex[index];
+    const values = searchValues(node);
+    if (!searchValuesMatch(values, terms)) continue;
+    insertSearchResult(results, {
+      node,
+      score: searchScore(node, values, terms, normalized)
+    }, limit);
+  }
+  return results;
+}
+
+`
+	report = replaceReportSection(report, `function searchEntryMatches(entry, terms) {`, `function closeSearchResults() {`, searchFunctions)
+	report = strings.Replace(
+		report,
+		`  if (!normalized) {
+    closeSearchResults();
+    return;
+  }
+
+  searchResults = findSearchMatches(normalized);`,
+		`  if (!normalized) {
+    closeSearchResults();
+    return;
+  }
+  if (!searchIndexBuilt) {
+    scheduleSearchIndexBuild();
+    renderSearchStatus("Preparing memory-efficient search...");
+    return;
+  }
+
+  searchResults = findSearchMatches(normalized);`,
+		1,
+	)
+	return report
+}
+
+func replaceMemoryRuntime(report string) string {
+	const prepareData = `function prepareReportData(root) {
+  byPath.clear();
+  searchIndex.length = 0;
+  searchIndexBuilt = false;
+  searchIndexBuilding = false;
+  searchIndexCharacters = 0;
+  closeSearchResults();
+  nextNodeId = 0;
+  DATA = root;
+  const counts = walk(DATA, null);
+  setSearchAvailability(counts.files);
+  state.topFiles = buildTopFilesIndex(DATA);
+  state.current = DATA;
+  state.selected = DATA;
+}
+
+`
+	report = replaceReportSection(report, `function prepareReportData(root) {`, `function showLoadError(error) {`, prepareData)
+	report = strings.ReplaceAll(report, "    if (!searchDisabled) scheduleSearchCandidateIndexBuild();\n", "")
+	report = strings.ReplaceAll(report, "    scheduleSearchCandidateIndexBuild();\n", "")
+	report = strings.Replace(
+		report,
+		`    const root = await loadReportData(REPORT_DATA_PAYLOAD);
+    prepareReportData(root);`,
+		`    const root = await loadReportData(REPORT_DATA_PAYLOAD);
+    REPORT_DATA_PAYLOAD.payload = "";
+    prepareReportData(root);`,
+		1,
+	)
+	report = strings.ReplaceAll(report, `  columnWidths: {},
+  columnWidths: {}`, `  columnWidths: {}`)
+	report = strings.Replace(
+		report,
+		`  materialIconCache.set(lookupName, svg);
+  return svg;`,
+		`  materialIconCache.set(lookupName, svg);
+  if (materialIconCache.size > 256) materialIconCache.delete(materialIconCache.keys().next().value);
+  return svg;`,
+		1,
+	)
+	const treemapItems = `function treemapItems(node, maxItems = DEFAULT_TREEMAP_TILE_CAP) {
+  const entryLimit = effectiveTreemapVisibleEntryLimit(maxItems);
+  if (entryLimit <= 0) return [];
+  const visible = [];
+  let hiddenCount = 0;
+  let hiddenSize = 0;
+  let hiddenItems = 0;
+  let hiddenFiles = 0;
+  const aggregate = item => {
+    hiddenCount++;
+    hiddenSize += item.size;
+    hiddenItems += (item.items || 0) + 1;
+    hiddenFiles += item.files || (item.type === "file" ? 1 : 0);
+  };
+  (node.children || []).forEach(child => {
+    if (child.size <= 0) return;
+    if (visible.length < entryLimit) {
+      visible.push(child);
+      return;
+    }
+    let smallestIndex = 0;
+    for (let index = 1; index < visible.length; index++) {
+      if (visible[index].size < visible[smallestIndex].size) smallestIndex = index;
+    }
+    if (child.size > visible[smallestIndex].size) {
+      aggregate(visible[smallestIndex]);
+      visible[smallestIndex] = child;
+    } else {
+      aggregate(child);
+    }
+  });
+  if (!visible.length && node.type !== "dir" && node.size > 0) return [node];
+  visible.sort((a, b) => b.size - a.size);
+  if (hiddenSize > 0) {
+    visible.push({
+      id: "other-" + node.id,
+      name: formatCount(hiddenCount) + " smaller " + (hiddenCount === 1 ? "entry" : "entries"),
+      path: (node.path || node.name) + " / smaller entries",
+      size: hiddenSize,
+      type: "file",
+      ext: "[other]",
+      children: [],
+      items: hiddenItems,
+      files: hiddenFiles,
+      depth: (node.depth || 0) + 1
+    });
+  }
+  return visible;
+}
+
+`
+	report = replaceReportSection(report, `function treemapItems(node, maxItems = DEFAULT_TREEMAP_TILE_CAP) {`, `function hasTreemapChildren(node) {`, treemapItems)
+	return report
+}
+
+func replaceReportSection(report, startMarker, endMarker, replacement string) string {
+	start := strings.Index(report, startMarker)
+	if start < 0 {
+		return report
+	}
+	endOffset := strings.Index(report[start:], endMarker)
+	if endOffset < 0 {
+		return report
+	}
+	end := start + endOffset
+	return report[:start] + replacement + report[end:]
 }
 
 func replacePayload(report, payload string) (string, error) {

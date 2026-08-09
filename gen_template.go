@@ -20,7 +20,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	output := "package main\n\n// Code generated from example/report.html; DO NOT EDIT.\nconst reportTemplate = " + strconv.Quote(template) + "\n"
+	output := "package main\n\n// Code generated from example/report.html; DO NOT EDIT.\n//go:generate go run gen_template.go\nconst reportTemplate = " + strconv.Quote(template) + "\n"
 	if err := os.WriteFile("template_data.go", []byte(output), 0o644); err != nil {
 		panic(err)
 	}

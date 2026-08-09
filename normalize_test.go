@@ -69,6 +69,23 @@ func TestNormalizePreservesExplicitMIME(t *testing.T) {
 	}
 }
 
+func TestAddTotalsHandlesDeepTreesIteratively(t *testing.T) {
+	root := &Node{Name: "root", Type: "dir"}
+	current := root
+	for range 100_000 {
+		child := &Node{Name: "dir", Type: "dir"}
+		current.Children = []*Node{child}
+		current = child
+	}
+	current.Type = "file"
+	if err := addTotals(root); err != nil {
+		t.Fatal(err)
+	}
+	if root.Items != 100_000 || root.Files != 1 || current.Depth != 100_000 {
+		t.Fatalf("unexpected totals: items=%d files=%d depth=%d", root.Items, root.Files, current.Depth)
+	}
+}
+
 func TestExtensionFor(t *testing.T) {
 	cases := map[string]string{
 		"file.TXT":  ".txt",

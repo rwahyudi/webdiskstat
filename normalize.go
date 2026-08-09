@@ -24,6 +24,8 @@ var (
 	numberPattern = regexp.MustCompile(`^\d+(\.\d+)?$`)
 )
 
+const maxReportNodes = 5_000_000
+
 func normalizeExport(raw any, inputType string) (*Node, error) {
 	if inputType != "gdu" && inputType != "ncdu" {
 		return nil, fmt.Errorf("unsupported input type: %s", inputType)
@@ -59,7 +61,9 @@ func normalizeExport(raw any, inputType string) (*Node, error) {
 	default:
 		return nil, fmt.Errorf("expected a JSON object or array")
 	}
-	addTotals(root)
+	if err := addTotals(root); err != nil {
+		return nil, err
+	}
 	return root, nil
 }
 
@@ -345,28 +349,48 @@ func extractMappingChildren(raw map[string]any, parentPath, inputType string) []
 	return children
 }
 
-func addTotals(root *Node) {
+func addTotals(root *Node) error {
+	if root == nil {
+		return nil
+	}
+	type frame struct {
+		node    *Node
+		depth   int
+		visited bool
+	}
 	nextID := 0
-	var visit func(*Node, int) (int, int)
-	visit = func(node *Node, depth int) (int, int) {
-		node.ID = nextID
-		nextID++
-		node.Depth = depth
+	stack := []frame{{node: root}}
+	for len(stack) > 0 {
+		index := len(stack) - 1
+		current := stack[index]
+		stack = stack[:index]
+		if !current.visited {
+			if nextID >= maxReportNodes {
+				return fmt.Errorf("report contains more than %d nodes", maxReportNodes)
+			}
+			current.node.ID = nextID
+			nextID++
+			current.node.Depth = current.depth
+			stack = append(stack, frame{node: current.node, depth: current.depth, visited: true})
+			for childIndex := len(current.node.Children) - 1; childIndex >= 0; childIndex-- {
+				stack = append(stack, frame{node: current.node.Children[childIndex], depth: current.depth + 1})
+			}
+			continue
+		}
+
 		totalCount := 1
 		fileCount := 0
-		if node.Type != "dir" {
+		if current.node.Type != "dir" {
 			fileCount = 1
 		}
-		for _, child := range node.Children {
-			childCount, childFiles := visit(child, depth+1)
-			totalCount += childCount
-			fileCount += childFiles
+		for _, child := range current.node.Children {
+			totalCount += child.Items + 1
+			fileCount += child.Files
 		}
-		node.Items = totalCount - 1
-		node.Files = fileCount
-		return totalCount, fileCount
+		current.node.Items = totalCount - 1
+		current.node.Files = fileCount
 	}
-	visit(root, 0)
+	return nil
 }
 
 func firstString(raw map[string]any, keys []string) string {

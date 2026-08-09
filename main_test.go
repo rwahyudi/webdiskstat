@@ -30,3 +30,17 @@ func TestRunWritesStdoutReport(t *testing.T) {
 		t.Fatalf("raw filename should be inside compressed payload, not directly in HTML")
 	}
 }
+
+func TestRunPrintsVersionWithoutInput(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"-v"}, strings.NewReader(""), &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit code = %d; stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "webdiskstat "+version) || !strings.Contains(stdout.String(), "Built: ") {
+		t.Fatalf("unexpected version output: %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("version wrote to stderr: %s", stderr.String())
+	}
+}

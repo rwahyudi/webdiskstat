@@ -43,18 +43,28 @@ func (strings *reportDataStrings) intern(value string) int {
 	return index
 }
 
-func (strings *reportDataStrings) collect(node *Node, parentPath string) {
-	expectedPath := makePath(parentPath, node.Name)
-	strings.intern(node.Name)
-	if node.Path != expectedPath {
-		strings.intern(node.Path)
+func (strings *reportDataStrings) collect(root *Node) {
+	type entry struct {
+		node       *Node
+		parentPath string
 	}
-	strings.intern(node.Ext)
-	strings.intern(node.MTime)
-	strings.intern(node.MIME)
-	strings.intern(node.Flag)
-	for _, child := range node.Children {
-		strings.collect(child, node.Path)
+	stack := []entry{{node: root}}
+	for len(stack) > 0 {
+		index := len(stack) - 1
+		current := stack[index]
+		stack = stack[:index]
+		expectedPath := makePath(current.parentPath, current.node.Name)
+		strings.intern(current.node.Name)
+		if current.node.Path != expectedPath {
+			strings.intern(current.node.Path)
+		}
+		strings.intern(current.node.Ext)
+		strings.intern(current.node.MTime)
+		strings.intern(current.node.MIME)
+		strings.intern(current.node.Flag)
+		for childIndex := len(current.node.Children) - 1; childIndex >= 0; childIndex-- {
+			stack = append(stack, entry{node: current.node.Children[childIndex], parentPath: current.node.Path})
+		}
 	}
 }
 
@@ -89,7 +99,7 @@ func reportDataPayload(root *Node, password *string) (string, error) {
 
 func compressedReportData(root *Node) ([]byte, error) {
 	var buf bytes.Buffer
-	writer, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	writer, err := gzip.NewWriterLevel(&buf, gzip.DefaultCompression)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +121,7 @@ func compressedReportData(root *Node) ([]byte, error) {
 
 func writeBinaryReportData(writer *bufio.Writer, root *Node) error {
 	strings := newReportDataStrings()
-	strings.collect(root, "")
+	strings.collect(root)
 	if _, err := writer.Write([]byte{'G', 'D', 'S', 1}); err != nil {
 		return err
 	}
@@ -127,7 +137,23 @@ func writeBinaryReportData(writer *bufio.Writer, root *Node) error {
 			return err
 		}
 	}
-	return writeBinaryNode(writer, strings, root, "")
+	type entry struct {
+		node       *Node
+		parentPath string
+	}
+	stack := []entry{{node: root}}
+	for len(stack) > 0 {
+		index := len(stack) - 1
+		current := stack[index]
+		stack = stack[:index]
+		if err := writeBinaryNode(writer, strings, current.node, current.parentPath); err != nil {
+			return err
+		}
+		for childIndex := len(current.node.Children) - 1; childIndex >= 0; childIndex-- {
+			stack = append(stack, entry{node: current.node.Children[childIndex], parentPath: current.node.Path})
+		}
+	}
+	return nil
 }
 
 func writeBinaryNode(writer *bufio.Writer, strings *reportDataStrings, node *Node, parentPath string) error {
@@ -153,11 +179,6 @@ func writeBinaryNode(writer *bufio.Writer, strings *reportDataStrings, node *Nod
 	}
 	for _, value := range fields {
 		if err := writeUvarint(writer, value); err != nil {
-			return err
-		}
-	}
-	for _, child := range node.Children {
-		if err := writeBinaryNode(writer, strings, child, node.Path); err != nil {
 			return err
 		}
 	}

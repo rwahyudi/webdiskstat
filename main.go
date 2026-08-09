@@ -12,6 +12,7 @@ import (
 
 const usageText = `Usage:
   webdiskstat [--input-type gdu|ncdu] [-o OUTPUT] [--password PASSWORD] [input]
+  webdiskstat -v
 
 Build a static WinDirStat-like web report from gdu or ncdu JSON.
 
@@ -22,6 +23,7 @@ Options:
   --input-type FORMAT   Input JSON format: gdu or ncdu. Defaults to gdu.
   -o, --output PATH     HTML output path, or '-' for stdout. Defaults to webdiskstat.html.
   --password PASSWORD   Encrypt embedded report data with this password.
+  -v, --version         Print the version and local build time.
 
 Examples:
   gdu -o- / | webdiskstat -o webdiskstat.html
@@ -35,7 +37,13 @@ type cliOptions struct {
 	output    string
 	password  string
 	hasPass   bool
+	version   bool
 }
+
+var (
+	version   = "dev"
+	buildDate string
+)
 
 func main() {
 	if code := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); code != 0 {
@@ -51,6 +59,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 2
+	}
+	if opts.version {
+		fmt.Fprintln(stdout, versionSummary())
+		return 0
 	}
 	if opts.hasPass && opts.password == "" {
 		fmt.Fprintln(stderr, "webdiskstat: --password must not be empty")
@@ -105,6 +117,8 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 		case arg == "-h" || arg == "--help":
 			fmt.Fprint(stderr, usageText)
 			return opts, flag.ErrHelp
+		case arg == "-v" || arg == "--version":
+			opts.version = true
 		case arg == "-":
 			positional = append(positional, arg)
 		case arg == "--":
@@ -156,6 +170,21 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 		return opts, fmt.Errorf("expected at most one input path")
 	}
 	return opts, nil
+}
+
+func versionSummary() string {
+	date := buildDate
+	if date == "" {
+		if executable, err := os.Executable(); err == nil {
+			if info, err := os.Stat(executable); err == nil {
+				date = info.ModTime().Local().Format("2006-01-02 15:04:05 MST")
+			}
+		}
+	}
+	if date == "" {
+		date = "unknown"
+	}
+	return fmt.Sprintf("%s %s\nBuilt: %s", appTitle, version, date)
 }
 
 func optionValue(args []string, index int, name string) (string, int, error) {
