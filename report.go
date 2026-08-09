@@ -72,6 +72,7 @@ func optimizedReportTemplate() string {
 		report = replaceTreeColumnSeparators(report)
 		report = replaceTreeTableFontSize(report)
 		report = replaceBrowserMemoryUsage(report)
+		report = replaceLoadingProgress(report)
 		if !strings.Contains(report, "  topFiles: [],") {
 			report = strings.Replace(
 				report,
@@ -1905,11 +1906,14 @@ func replaceFolderIcon(report string) string {
 }
 
 func replaceReportAccessibility(report string) string {
+	const oldFocusCSS = `.row:focus-visible,.tile:focus-visible,.top-file-row:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}`
+	const focusCSS = `.row:focus-visible{outline:1px solid var(--row-active-line);outline-offset:-1px}.tile:focus-visible,.top-file-row:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}`
+	report = strings.ReplaceAll(report, oldFocusCSS, focusCSS)
 	const marker = `function enhanceReportAccessibility()`
 	if strings.Contains(report, marker) {
 		return report
 	}
-	const css = `@media(max-width:720px){.toolbar{height:auto;min-height:48px;flex-wrap:wrap;padding:8px}.pathbar{flex:1 1 100%;order:1}.search{flex:1 1 100%;order:3}.tools{order:2}.tree-header{font-size:11px}.row{font-size:13px}.row-kind{font-size:10px}.row-count,.row-size,.row-modified,.row-pct{font-size:12px}.tree-column-resizer{width:18px;right:-9px}.top-file-row{padding:12px}.detail-card{padding:14px}}.row:focus-visible,.tile:focus-visible,.top-file-row:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}`
+	const css = `@media(max-width:720px){.toolbar{height:auto;min-height:48px;flex-wrap:wrap;padding:8px}.pathbar{flex:1 1 100%;order:1}.search{flex:1 1 100%;order:3}.tools{order:2}.tree-header{font-size:11px}.row{font-size:13px}.row-kind{font-size:10px}.row-count,.row-size,.row-modified,.row-pct{font-size:12px}.tree-column-resizer{width:18px;right:-9px}.top-file-row{padding:12px}.detail-card{padding:14px}}` + focusCSS
 	report = strings.Replace(report, `</style>`, css+`</style>`, 1)
 	const script = `
 function enhanceReportAccessibility() {
@@ -2239,6 +2243,162 @@ async function loadReportData(payload) {
 }
 `
 	return strings.Replace(report, old, new, 1)
+}
+
+func replaceLoadingProgress(report string) string {
+	if strings.Contains(report, "loading-progress-fill") {
+		return report
+	}
+	const oldOverlay = `<div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite"><div class="loading-panel"><div class="loading-spinner" aria-hidden="true"></div><div class="loading-title">Loading report data</div><div class="loading-subtitle">Preparing disk usage view</div></div></div>`
+	const newOverlay = `<div id="loadingOverlay" class="loading-overlay" role="status" aria-live="polite"><div class="loading-panel"><div class="loading-spinner" aria-hidden="true"></div><div class="loading-title">Loading report data</div><div class="loading-subtitle" id="loadingSubtitle">Preparing disk usage view</div><div class="loading-progress" aria-hidden="true"><span id="loadingProgressFill" class="loading-progress-fill"></span></div><ol id="loadingTasks" class="loading-tasks"></ol></div></div>`
+	report = strings.Replace(report, oldOverlay, newOverlay, 1)
+	const css = `.loading-progress{width:100%;height:6px;border-radius:999px;background:color-mix(in srgb,var(--line) 40%,transparent);overflow:hidden;box-shadow:inset 0 1px 0 rgba(0,0,0,0.12)}.loading-progress-fill{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--accent) 0%,var(--accent-2) 100%);transition:width 260ms ease}.loading-tasks{list-style:none;margin:0;padding:0;width:100%;display:grid;gap:6px}.loading-task{display:grid;grid-template-columns:18px 1fr;gap:8px;align-items:center;justify-items:start;color:var(--muted);font-size:12px;line-height:1.3;text-align:left}.loading-task .loading-task-dot{width:12px;height:12px;border-radius:999px;border:2px solid color-mix(in srgb,var(--line) 70%,transparent);display:grid;place-items:center;font-size:9px;line-height:1}.loading-task.active{color:var(--ink);font-weight:650}.loading-task.active .loading-task-dot{border-color:var(--accent);border-top-color:transparent;animation:loading-spin 700ms linear infinite}.loading-task.done{color:color-mix(in srgb,var(--accent-2) 75%,var(--muted))}.loading-task.done .loading-task-dot{border-color:var(--accent-2);background:var(--accent-2);color:#fff}.loading-task.done .loading-task-dot::after{content:"\2713"}.loading-task.skipped{opacity:.4}.loading-task.error{color:#f87171}.loading-task.error .loading-task-dot{border-color:#f87171;background:#f87171;color:#fff}.loading-task.error .loading-task-dot::after{content:"!"}@media(prefers-reduced-motion:reduce){.loading-progress-fill{transition:none}}`
+	report = strings.Replace(report, `</style>`, css+`</style>`, 1)
+	const script = `const loadingSteps = [
+  { key: "payload", label: "Decode embedded payload" },
+  { key: "decrypt", label: "Decrypt scan data" },
+  { key: "decompress", label: "Decompress scan data" },
+  { key: "index", label: "Build directory index" },
+  { key: "render", label: "Render interface" }
+];
+const loadingStepOrder = new Map(loadingSteps.map((step, index) => [step.key, index]));
+
+function loadingStepLabel(key) {
+  const step = loadingSteps.find(item => item.key === key);
+  return step ? step.label : key;
+}
+
+function buildLoadingTaskList() {
+  const list = document.getElementById("loadingTasks");
+  if (!list) return;
+  list.textContent = "";
+  loadingSteps.forEach(step => {
+    const item = document.createElement("li");
+    item.className = "loading-task";
+    item.dataset.step = step.key;
+    const dot = document.createElement("span");
+    dot.className = "loading-task-dot";
+    dot.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = step.label;
+    item.append(dot, label);
+    list.appendChild(item);
+  });
+}
+
+function setLoadingStep(stepKey, status = "active") {
+  const list = document.getElementById("loadingTasks");
+  const fill = document.getElementById("loadingProgressFill");
+  const subtitle = document.getElementById("loadingSubtitle");
+  if (!loadingStepOrder.has(stepKey)) return;
+  const activePosition = loadingStepOrder.get(stepKey);
+  if (list) {
+    list.querySelectorAll(".loading-task").forEach(item => {
+      const position = loadingStepOrder.get(item.dataset.step);
+      item.classList.remove("active", "done", "skipped", "error");
+      if (position < activePosition) item.classList.add("done");
+      if (item.dataset.step === stepKey) item.classList.add(status === "error" ? "error" : status);
+    });
+  }
+  if (fill) fill.style.width = (activePosition / Math.max(1, loadingSteps.length - 1) * 100) + "%";
+  if (subtitle) {
+    subtitle.textContent = status === "error"
+      ? "Failed at: " + loadingStepLabel(stepKey)
+      : "Step " + (activePosition + 1) + " of " + loadingSteps.length + ": " + loadingStepLabel(stepKey);
+  }
+}
+
+`
+	report = strings.Replace(report, `function hideLoadingOverlay() {`, script+`function hideLoadingOverlay() {`, 1)
+	report = strings.Replace(
+		report,
+		`async function loadCompressedReportData(bytes) {
+  if (typeof DecompressionStream !== "function") {
+    throw new Error("This browser cannot decompress embedded report data. Use a current Chrome, Edge, Firefox, or Safari release.");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const data = new Uint8Array(await new Response(stream).arrayBuffer());
+  return unpackReportData(data);
+}
+
+async function loadReportData(payload) {
+  const compressed = payload && payload.encrypted
+    ? await decryptReportPayload(payload)
+    : bytesFromReportPayload(payload);
+  return loadCompressedReportData(compressed);
+}`,
+		`async function loadCompressedReportData(bytes) {
+  if (typeof DecompressionStream !== "function") {
+    throw new Error("This browser cannot decompress embedded report data. Use a current Chrome, Edge, Firefox, or Safari release.");
+  }
+  setLoadingStep("decompress", "active");
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  const data = new Uint8Array(await new Response(stream).arrayBuffer());
+  const root = unpackReportData(data);
+  setLoadingStep("decompress", "done");
+  return root;
+}
+
+async function loadReportData(payload) {
+  const encrypted = !!(payload && payload.encrypted);
+  const step = encrypted ? "decrypt" : "payload";
+  if (!encrypted) setLoadingStep("decrypt", "skipped");
+  setLoadingStep(step, "active");
+  let compressed;
+  try {
+    compressed = encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
+  } catch (error) {
+    setLoadingStep(step, "error");
+    throw error;
+  }
+  setLoadingStep(step, "done");
+  return loadCompressedReportData(compressed);
+}`,
+		1,
+	)
+	report = strings.Replace(
+		report,
+		`  state.topFiles = buildTopFilesIndex(DATA);
+  state.current = DATA;
+  state.selected = DATA;
+}`,
+		`  state.topFiles = buildTopFilesIndex(DATA);
+  state.current = DATA;
+  state.selected = DATA;
+  setLoadingStep("index", "done");
+  setLoadingStep("render", "active");
+}`,
+		1,
+	)
+	report = strings.Replace(
+		report,
+		`function prepareReportData(root) {
+  byPath.clear();`,
+		`function prepareReportData(root) {
+  setLoadingStep("index", "active");
+  byPath.clear();`,
+		1,
+	)
+	report = strings.Replace(
+		report,
+		`    renderSafely();
+    hideLoadingOverlay();`,
+		`    renderSafely();
+    setLoadingStep("render", "done");
+    hideLoadingOverlay();`,
+		1,
+	)
+	report = strings.Replace(
+		report,
+		`async function initReport() {
+  setTheme(document.documentElement.dataset.theme, false);`,
+		`async function initReport() {
+  buildLoadingTaskList();
+  setLoadingStep("payload", "active");
+  setTheme(document.documentElement.dataset.theme, false);`,
+		1,
+	)
+	return report
 }
 
 func replaceSearchIndexBuild(report string) string {

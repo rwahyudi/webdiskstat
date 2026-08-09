@@ -204,6 +204,51 @@ func TestEnteringDirectoryFocusesFirstBrowserRow(t *testing.T) {
 	}
 }
 
+func TestReportShowsStagedLoadingProgress(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, needle := range []string{
+		`class="loading-progress"`,
+		`id="loadingProgressFill"`,
+		`id="loadingTasks"`,
+		`const loadingSteps = [`,
+		`{ key: "payload", label: "Decode embedded payload" }`,
+		`{ key: "decrypt", label: "Decrypt scan data" }`,
+		`{ key: "decompress", label: "Decompress scan data" }`,
+		`{ key: "index", label: "Build directory index" }`,
+		`{ key: "render", label: "Render interface" }`,
+		`function buildLoadingTaskList()`,
+		`function setLoadingStep(stepKey, status = "active")`,
+		`setLoadingStep("decompress", "active");`,
+		`setLoadingStep("index", "done");`,
+		`setLoadingStep("render", "done");`,
+		`buildLoadingTaskList();`,
+	} {
+		if !strings.Contains(report, needle) {
+			t.Fatalf("report missing loading progress code %q", needle)
+		}
+	}
+	if strings.Contains(report, `id="loadingSubtitle">Preparing disk usage view</div></div></div>`) {
+		t.Fatal("report still uses the single-step loading panel without a task list")
+	}
+}
+
+func TestFocusedBrowserRowUsesSubtleOutline(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const subtle = `.row:focus-visible{outline:1px solid var(--row-active-line);outline-offset:-1px}`
+	if !strings.Contains(report, subtle) {
+		t.Fatalf("report missing subtle focused-row style %q", subtle)
+	}
+	if strings.Contains(report, `.row:focus-visible,.tile:focus-visible,.top-file-row:focus-visible{outline:3px`) {
+		t.Fatal("file-browser rows still use the heavy shared focus outline")
+	}
+}
+
 func TestTreeColumnsHaveSubtleSeparators(t *testing.T) {
 	report, err := renderReport(&Node{Name: "root", Path: "root", Type: "dir"}, nil)
 	if err != nil {
