@@ -3078,6 +3078,10 @@ func replaceGeneratedMetadata(report, generatedISO, generatedDisplay string) str
 }
 
 func replaceSecurityStatus(report string, encrypted bool) string {
+	if !encrypted && !strings.Contains(report, `.security-info{`) {
+		const securityInfoCSS = `.security-info{position:relative;flex:0 0 auto}.security-info>summary{cursor:pointer;list-style:none;user-select:none}.security-info>summary::-webkit-details-marker{display:none}.security-info>summary:hover{border-color:var(--warn)}.security-info>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.security-info-mark{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.security-info-panel{position:absolute;z-index:100;bottom:calc(100% + 10px);left:0;width:min(350px,calc(100vw - 28px));max-height:calc(100dvh - 110px);overflow:auto;box-sizing:border-box;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);box-shadow:var(--shadow);font-size:13px;line-height:1.6;white-space:normal}.security-info-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px}.security-info-head h2{margin:0;font-size:14px;line-height:1.4}.security-info-close{min-height:32px;padding:4px 8px;font-size:12px;font-weight:600}.security-info-close:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.security-info-panel p{margin:0}.security-info-panel p+p{margin-top:10px}.security-info-panel code{font-size:inherit}`
+		report = strings.Replace(report, `</style>`, securityInfoCSS+`</style>`, 1)
+	}
 	footerStart := strings.Index(report, `<footer class="footer">`)
 	metaStart := strings.Index(report, `<span class="footer-meta">`)
 	if footerStart < 0 || metaStart < 0 || metaStart <= footerStart {
@@ -3090,7 +3094,32 @@ func securityStatusHTML(encrypted bool) string {
 	if encrypted {
 		return `<span class="report-security encrypted" title="Embedded scan data is encrypted and requires the report password."><svg class="security-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M12 15v2"/></svg><span>Data encrypted</span></span>`
 	}
-	return `<span class="report-security plain" title="Embedded scan data is not encrypted."><svg class="security-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11V8a4 4 0 0 1 7.6-1.8"/><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M12 15v2"/></svg><span>Data not encrypted</span></span>`
+	return `<details class="security-info" id="reportSecurityInfo"><summary class="report-security plain" aria-controls="reportSecurityExplanation"><svg class="security-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 11V8a4 4 0 0 1 7.6-1.8"/><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M12 15v2"/></svg><span>Data not encrypted</span><svg class="security-info-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/></svg></summary><section class="security-info-panel" id="reportSecurityExplanation" aria-labelledby="reportSecurityTitle"><div class="security-info-head"><h2 id="reportSecurityTitle">What does this mean?</h2><button type="button" class="security-info-close" aria-label="Close encryption information">Close</button></div><p>This HTML file includes filenames, folder paths, sizes and available metadata. Anyone with the report can read this data. It does not include the original files’ contents.</p><p>To protect the scan data, generate a new report with <code>--password</code>. This does not encrypt copies of this report you already have.</p></section></details><script>
+(() => {
+  const info = document.getElementById("reportSecurityInfo");
+  const summary = info.querySelector("summary");
+  function closeSecurityInfo(restoreFocus) {
+    info.open = false;
+    if (restoreFocus) summary.focus();
+  }
+  info.querySelector(".security-info-close").addEventListener("click", () => closeSecurityInfo(true));
+  // Keep report navigation shortcuts from overriding native disclosure/button keys.
+  info.addEventListener("keydown", event => event.stopPropagation());
+  document.addEventListener("pointerdown", event => {
+    if (info.open && !info.contains(event.target)) closeSecurityInfo(false);
+  });
+  document.addEventListener("focusin", event => {
+    if (info.open && !info.contains(event.target)) closeSecurityInfo(false);
+  });
+  document.addEventListener("keydown", event => {
+    if (info.open && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSecurityInfo(true);
+    }
+  }, true);
+})();
+</script>`
 }
 
 func fillReportSize(report string) string {
