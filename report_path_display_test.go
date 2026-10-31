@@ -11,7 +11,7 @@ func TestCopiedPathsKeepTheirTailAndExposeFullTextTooltip(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`.path-copy-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}`,
+		`.path-copy-text{font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}`,
 		`pathText.title = filePath;`,
 		`const pathValue = document.createElement("bdi");`,
 		`pathValue.dir = "ltr";`,
