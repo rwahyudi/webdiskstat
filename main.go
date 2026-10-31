@@ -12,6 +12,7 @@ import (
 
 const usageText = `Usage:
   webdiskstat [--input-type gdu|ncdu] [-o OUTPUT] [--password PASSWORD] [input]
+  webdiskstat --diff before.json[.gz] after.json[.gz] [-o OUTPUT]
   webdiskstat -v
 
 Build a static WinDirStat-like web report from gdu or ncdu JSON.
@@ -21,6 +22,7 @@ Arguments:
 
 Options:
   --input-type FORMAT   Input JSON format: gdu or ncdu. Defaults to gdu.
+  --diff                Compare two gdu snapshots and write a changes report.
   -o, --output PATH     HTML output path, or '-' for stdout. Defaults to webdiskstat.html.
   --password PASSWORD   Encrypt embedded report data with this password.
   -v, --version         Print the version and local build time.
@@ -29,6 +31,7 @@ Examples:
   gdu -o- / | webdiskstat -o webdiskstat.html
   ncdu -o- / | webdiskstat --input-type ncdu -o webdiskstat.html
   zcat report.json.gz | webdiskstat -o report.html
+  webdiskstat --diff before.json after.json -o changes.html
 `
 
 type cliOptions struct {
@@ -38,6 +41,8 @@ type cliOptions struct {
 	password  string
 	hasPass   bool
 	version   bool
+	diff      bool
+	inputs    []string
 }
 
 var (
@@ -63,6 +68,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if opts.version {
 		fmt.Fprintln(stdout, versionSummary())
 		return 0
+	}
+	if opts.diff {
+		return runDiff(opts, stdin, stdout, stderr)
 	}
 	if opts.hasPass && opts.password == "" {
 		fmt.Fprintln(stderr, "webdiskstat: --password must not be empty")
@@ -119,6 +127,8 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 			return opts, flag.ErrHelp
 		case arg == "-v" || arg == "--version":
 			opts.version = true
+		case arg == "--diff":
+			opts.diff = true
 		case arg == "-":
 			positional = append(positional, arg)
 		case arg == "--":
@@ -167,9 +177,96 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 	case 1:
 		opts.input = positional[0]
 	default:
-		return opts, fmt.Errorf("expected at most one input path")
+		if !opts.diff || len(positional) != 2 {
+			if opts.diff {
+				return opts, fmt.Errorf("--diff requires exactly two input paths")
+			}
+			return opts, fmt.Errorf("expected at most one input path")
+		}
+	}
+	if opts.diff {
+		if len(positional) != 2 {
+			return opts, fmt.Errorf("--diff requires exactly two input paths")
+		}
+		opts.inputs = positional
+		if opts.inputType != "gdu" {
+			return opts, fmt.Errorf("--diff supports gdu input only")
+		}
+		stdinCount := 0
+		for _, source := range positional {
+			if source == "-" {
+				stdinCount++
+			}
+		}
+		if stdinCount > 1 {
+			return opts, fmt.Errorf("--diff accepts stdin ('-') at most once")
+		}
 	}
 	return opts, nil
+}
+
+func runDiff(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer) int {
+	if opts.hasPass && opts.password == "" {
+		fmt.Fprintln(stderr, "webdiskstat: --password must not be empty")
+		return 2
+	}
+	if len(opts.inputs) != 2 {
+		fmt.Fprintln(stderr, "webdiskstat: --diff requires exactly two input paths")
+		return 2
+	}
+	stdinUsed := false
+	load := func(source, label string) (*Node, diffMetadata, error) {
+		if source == "-" {
+			if stdinUsed {
+				return nil, diffMetadata{}, fmt.Errorf("stdin may be used only once")
+			}
+			stdinUsed = true
+		}
+		raw, err := readJSON(source, stdin)
+		if err != nil {
+			return nil, diffMetadata{}, fmt.Errorf("%s (%s): %w", label, source, err)
+		}
+		root, meta, err := normalizeGDUForDiff(raw)
+		if err != nil {
+			return nil, diffMetadata{}, fmt.Errorf("%s (%s): %w", label, source, err)
+		}
+		return root, meta, nil
+	}
+	before, bMeta, err := load(opts.inputs[0], "baseline")
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	after, aMeta, err := load(opts.inputs[1], "current")
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	report, err := buildDiffReport(before, after, opts.inputs[0], opts.inputs[1])
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	report.Before.CapturedAt = bMeta.capturedAt
+	report.After.CapturedAt = aMeta.capturedAt
+	var password *string
+	if opts.hasPass {
+		password = &opts.password
+	}
+	page, err := renderDiffReport(report, password)
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	outputPath, err := writeReport(page, opts.output, stdout)
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	if opts.output != "-" {
+		fmt.Fprintf(stderr, "Wrote %s\n", outputPath)
+	}
+	return 0
 }
 
 func versionSummary() string {

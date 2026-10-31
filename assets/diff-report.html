@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>
+      webdiskstat · Snapshot comparison
+    </title>
+    <link rel="icon" href="DIFF_FAVICON">
+    <style>
+      /* DIFF_FONTS */
+      :root {
+        color-scheme: light;
+        --bg: #f1f5f9;
+        --paper: #fff;
+        --ink: #172b46;
+        --muted: #52647c;
+        --line: #d7e0eb;
+        --blue: #1d4ed8;
+        --up: #a53320;
+        --down: #087566;
+        --soft: #eff6ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 14px/1.6 "Noto Sans",sans-serif;
+      }
+      header {
+        background: var(--paper);
+        border-bottom: 1px solid var(--line);
+        padding: 18px max(24px,calc((100% - 1440px)/2));
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header strong {
+        font-size: 21px;
+        letter-spacing: -.6px;
+      }
+      header span {
+        border-left: 1px solid var(--line);
+        padding-left: 16px;
+        color: var(--muted);
+      }
+      main {
+        max-width: 1488px;
+        margin: auto;
+        padding: 30px 24px 40px;
+      }
+      h1 {
+        font-size: 29px;
+        line-height: 1.25;
+        letter-spacing: -.8px;
+        margin: 0 0 10px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 0;
+      }
+      h3 {
+        font-size: 14px;
+        margin: 0 0 12px;
+      }
+      .muted,small {
+        color: var(--muted);
+      }
+      p {
+        margin: 8px 0 20px;
+        max-width: 85ch;
+      }
+      .panel {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin-top: 24px;
+        overflow: hidden;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1.2fr;
+      }
+      .summary article {
+        padding: 24px;
+        min-width: 0;
+      }
+      .summary article+article {
+        border-left: 1px solid var(--line);
+      }
+      .summary h2 {
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .metric {
+        display: block;
+        font-size: 32px;
+        font-weight: 700;
+        line-height: 1.5;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -1px;
+      }
+      .source {
+        display: block;
+        overflow-wrap: anywhere;
+        margin-top: 14px;
+      }
+      .up {
+        color: var(--up);
+      }
+      .down {
+        color: var(--down);
+      }
+      .gross {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        padding: 16px 24px;
+        border-top: 1px solid var(--line);
+        background: #f8fafc;
+      }
+      .gross strong {
+        font-variant-numeric: tabular-nums;
+      }
+      .rankings {
+        display: grid;
+        grid-template-columns: repeat(4,minmax(0,1fr));
+        gap: 24px;
+        padding: 24px;
+      }
+      .rankings ol {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .rankings li {
+        padding: 8px 0;
+        border-top: 1px solid var(--line);
+      }
+      .rankings button {
+        display: block;
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 100%;
+        padding: 0;
+        border: 0;
+        color: var(--blue);
+        background: none;
+        min-height: 30px;
+      }
+      .rankings small {
+        font-variant-numeric: tabular-nums;
+      }
+      .section-head {
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      button,input,select {
+        font: inherit;
+      }
+      button,select {
+        min-height: 38px;
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--paper);
+        color: var(--ink);
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--soft);
+        border-color: #93afe4;
+      }
+      button:disabled {
+        opacity: .5;
+        cursor: default;
+      }
+      button.primary {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: white;
+      }
+      input {
+        min-height: 40px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        color: var(--ink);
+        background: var(--paper);
+        width: 100%;
+        caret-color: var(--blue);
+      }
+      input::placeholder {
+        color: var(--muted);
+      }
+      :focus-visible {
+        outline: 3px solid #2563eb;
+        outline-offset: 3px;
+      }
+      ::selection {
+        background: #bfdbfe;
+        color: #172b46;
+      }
+      .tools {
+        display: flex;
+        align-items: end;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 0 24px 18px;
+      }
+      .search {
+        flex: 1;
+        min-width: 220px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+      .crumbs {
+        padding: 12px 24px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .crumbs button {
+        color: var(--blue);
+        max-width: 100%;
+        overflow-wrap: anywhere;
+      }
+      .scroll {
+        overflow: auto;
+        scrollbar-color: #94a3b8 var(--bg);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      caption {
+        text-align: left;
+        padding: 8px 24px;
+        color: var(--muted);
+      }
+      th {
+        text-align: right;
+        background: #f8fafc;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        white-space: nowrap;
+      }
+      th:first-child {
+        text-align: left;
+        min-width: 260px;
+      }
+      th button {
+        font-size: 12px;
+        border: 0;
+        background: none;
+        border-radius: 0;
+      }
+      td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #e8eef5;
+        text-align: right;
+        white-space: nowrap;
+      }
+      td:first-child {
+        text-align: left;
+        width: 100%;
+        max-width: 480px;
+      }
+      td:first-child button {
+        border: 0;
+        padding: 0;
+        min-height: 28px;
+        text-align: left;
+        color: var(--blue);
+        background: none;
+        max-width: 100%;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+      td:first-child span.path {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+      tr:hover td {
+        background: #f8fafc;
+      }
+      .entry {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .icon {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        color: #64748b;
+      }
+      .badge {
+        font-size: 11px;
+        padding: 3px 7px;
+        border-radius: 4px;
+        background: #edf2f7;
+      }
+      .pager {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 24px;
+        flex-wrap: wrap;
+      }
+      .pager div {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .empty {
+        padding: 40px 24px;
+        text-align: center;
+      }
+      .empty strong {
+        font-size: 20px;
+        display: block;
+      }
+      .notice {
+        padding: 12px 24px;
+        color: var(--muted);
+        background: #f8fafc;
+        border-top: 1px solid var(--line);
+        font-size: 12px;
+      }
+      #loading {
+        padding: 50px 24px;
+        text-align: center;
+      }
+      #retry {
+        margin-top: 16px;
+      }
+      dialog {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 28px;
+        max-width: min(420px,calc(100% - 32px));
+        color: var(--ink);
+        box-shadow: 0 18px 60px #172b4633;
+      }
+      dialog::backdrop {
+        background: #172b4688;
+      }
+      dialog h2 {
+        margin-bottom: 12px;
+      }
+      dialog menu {
+        display: flex;
+        justify-content: end;
+        gap: 10px;
+        padding: 0;
+        margin: 20px 0 0;
+      }
+      [hidden] {
+        display: none!important;
+      }
+      footer {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      @media(max-width:900px) {
+        .rankings {
+          grid-template-columns: repeat(2,minmax(0,1fr));
+        }
+        .metric {
+          font-size: 26px;
+        }
+      }
+      @media(max-width:600px) {
+        header {
+          padding: 16px;
+        }
+        header span {
+          font-size: 12px;
+        }
+        main {
+          padding: 24px 12px;
+        }
+        h1 {
+          font-size: 25px;
+        }
+        .summary {
+          grid-template-columns: 1fr;
+        }
+        .summary article {
+          padding: 18px;
+        }
+        .summary article+article {
+          border-left: 0;
+          border-top: 1px solid var(--line);
+        }
+        .metric {
+          font-size: 29px;
+        }
+        .rankings {
+          grid-template-columns: 1fr;
+          padding: 18px;
+          gap: 20px;
+        }
+        .section-head,.tools,.crumbs,.pager {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .tools>* {
+          width: 100%;
+        }
+        .gross {
+          padding: 16px 18px;
+        }
+        .source {
+          margin-top: 8px;
+        }
+        td:first-child {
+          max-width: 280px;
+        }
+      }
+      th[aria-sort="ascending"] button::after,th[aria-sort="descending"] button::after {
+        content: "";
+        display: inline-block;
+        margin-left: 7px;
+        vertical-align: middle;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+      }
+      th[aria-sort="ascending"] button::after {
+        border-bottom: 5px solid currentColor;
+      }
+      th[aria-sort="descending"] button::after {
+        border-top: 5px solid currentColor;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>
+        webdiskstat
+      </strong>
+      <span>
+        Snapshot comparison
+      </span>
+    </header>
+    <main>
+      <h1>
+        What changed on disk?
+      </h1>
+      <p class="muted">
+        Compare snapshot metadata, not file contents. Renames appear as a removal and an addition.
+      </p>
+      <div id="loading" role="status" aria-live="polite">
+        Opening comparison…
+      </div>
+      <button id="retry" hidden>
+        Try opening again
+      </button>
+      <div id="report" hidden>
+        <section class="panel" aria-label="Comparison summary">
+          <div class="summary">
+            <article>
+              <h2>
+                Before
+              </h2>
+              <strong id="beforeSize" class="metric">
+              </strong>
+              <div id="beforeCounts">
+              </div>
+              <small id="beforeSource" class="source">
+              </small>
+            </article>
+            <article>
+              <h2>
+                After
+              </h2>
+              <strong id="afterSize" class="metric">
+              </strong>
+              <div id="afterCounts">
+              </div>
+              <small id="afterSource" class="source">
+              </small>
+            </article>
+            <article>
+              <h2>
+                Net change
+              </h2>
+              <strong id="netSize" class="metric">
+              </strong>
+              <div id="netPercent">
+              </div>
+              <div id="netCounts" class="muted">
+              </div>
+            </article>
+          </div>
+          <div class="gross">
+            <span>
+              Gross increases
+              <strong id="increased" class="up">
+              </strong>
+            </span>
+            <span>
+              Gross decreases
+              <strong id="decreased" class="down">
+              </strong>
+            </span>
+            <span id="changeCount" class="muted">
+            </span>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="largestTitle">
+          <div class="section-head">
+            <h2 id="largestTitle">
+              Largest changes
+            </h2>
+            <span class="muted">
+              Directories include their descendants
+            </span>
+          </div>
+          <div id="rankings" class="rankings">
+          </div>
+          <div class="notice">
+            Gross totals count each file and each directory’s own allocation once. Directory rankings overlap and should not be added together.
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="explorerTitle">
+          <div class="section-head">
+            <h2 id="explorerTitle">
+              Explore changes
+            </h2>
+            <button id="csv">
+              Export all changes · CSV
+            </button>
+          </div>
+          <div class="tools">
+            <div class="search">
+              <label for="search">
+                Search all changed paths
+              </label>
+              <input id="search" type="search" placeholder="Find a file or directory…" autocomplete="off">
+            </div>
+            <div>
+              <label for="status">
+                Status
+              </label>
+              <select id="status">
+                <option value="all">
+                  All statuses
+                </option>
+                <option value="added">
+                  Added
+                </option>
+                <option value="removed">
+                  Removed
+                </option>
+                <option value="grown">
+                  Grown
+                </option>
+                <option value="shrunk">
+                  Shrunk
+                </option>
+                <option value="changed">
+                  Changed metadata / type
+                </option>
+              </select>
+            </div>
+            <div>
+              <label for="pageSize">
+                Rows per page
+              </label>
+              <select id="pageSize">
+                <option>
+                  50
+                </option>
+                <option>
+                  100
+                </option>
+                <option>
+                  200
+                </option>
+              </select>
+            </div>
+            <button id="reset">
+              Reset view
+            </button>
+          </div>
+          <nav id="crumbs" class="crumbs" aria-label="Directory path">
+          </nav>
+          <div class="scroll" tabindex="0" role="region" aria-label="Changes table, scroll horizontally for all columns">
+            <table>
+              <caption id="tableCaption">
+              </caption>
+              <thead>
+                <tr id="head">
+                </tr>
+              </thead>
+              <tbody id="rows">
+              </tbody>
+            </table>
+          </div>
+          <div id="empty" class="empty" hidden>
+          </div>
+          <div class="pager">
+            <span id="range" role="status" aria-live="polite">
+            </span>
+            <div>
+              <button id="previous">
+                Previous
+              </button>
+              <span id="pageLabel">
+              </span>
+              <button id="next">
+                Next
+              </button>
+            </div>
+          </div>
+          <div class="notice">
+            Open a directory to see its changed children. Unchanged ancestors are retained for navigation, even when increases and decreases cancel out. Search and status filters look across the entire snapshot.
+          </div>
+        </section>
+      </div>
+      <footer>
+        Self-contained offline report · No network requests · Percent change uses the before size; “New” means no baseline.
+      </footer>
+    </main>
+    <dialog id="passwordDialog" aria-labelledby="passwordTitle">
+      <form id="passwordForm">
+        <h2 id="passwordTitle">
+          Unlock comparison
+        </h2>
+        <p id="passwordMessage">
+        </p>
+        <label for="password">
+          Report password
+        </label>
+        <input id="password" type="password" required autocomplete="current-password">
+        <menu>
+          <button type="button" id="cancelPassword">
+            Cancel
+          </button>
+          <button class="primary">
+            Unlock
+          </button>
+        </menu>
+      </form>
+    </dialog>
+    <script id="diffData" type="application/json">
+      /* DIFF_PAYLOAD */
+    </script>
+    <script>
+      "use strict";
+
+      /* DIFF_RUNTIME */
+      const $ = id => document.getElementById(id);
+      function requestReportPassword(message) {
+        return new Promise((resolve, reject) => {
+          const dialog = $('passwordDialog');
+          $('passwordMessage').textContent = message;
+          $('password').value = '';
+          $('passwordForm').onsubmit = e => {
+            e.preventDefault();
+            dialog.close('unlock');
+          };
+          $('cancelPassword').onclick = () => dialog.close('cancel');
+          dialog.addEventListener('close', () => {
+            const password = $('password').value;
+            $('password').value = '';
+            dialog.returnValue === 'unlock' ? resolve(password) : reject(new Error('Password entry cancelled. Choose “Try opening again” to unlock.'));
+          }, {
+            once: true
+          });
+          dialog.showModal();
+          $('password').focus();
+        });
+      }
+      const statuses = new Set(['added', 'removed', 'grown', 'shrunk', 'changed']);
+      let data,
+        current,
+        changed = [],
+        parents = new WeakMap(),
+        page = 0,
+        sortKey = 'delta',
+        sortDirection = -1,
+        visible = [];
+      const columns = [['name', 'Name / path'], ['before', 'Before'], ['after', 'After'], ['delta', 'Change'], ['percent', '% change'], ['beforeFiles', 'Files before'], ['afterFiles', 'Files after'], ['status', 'Status']];
+      function bytes(value, signed = false) {
+        const sign = value < 0 ? '−' : signed && value > 0 ? '+' : '';
+        let n = Math.abs(value),
+          i = 0;
+        const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+        while (n >= 1024 && i < units.length - 1) {
+          n /= 1024;
+          i++;
+        }
+        return sign + n.toLocaleString(undefined, {
+          maximumFractionDigits: i ? 2 : 0
+        }) + ' ' + units[i];
+      }
+      function percentage(n) {
+        return n.before === 0 ? n.after === 0 ? '0%' : 'New' : (n.delta > 0 ? '+' : '') + (n.delta / n.before * 100).toLocaleString(undefined, {
+          maximumFractionDigits: 1
+        }) + '%';
+      }
+      function signed(n) {
+        return (n > 0 ? '+' : '') + n.toLocaleString();
+      }
+      function captureTime(value) {
+        const text = String(value ?? '').trim();
+        if (!text) return 'Capture time unavailable';
+        // GDU exports Unix seconds; other snapshot formats may carry ISO dates.
+        const numeric = /^[+-]?\d+(?:\.\d+)?$/.test(text);
+        const date = new Date(numeric ? Number(text) * 1000 : text);
+        if (!Number.isFinite(date.getTime())) return 'Capture time unavailable';
+        return 'Captured: ' + date.toLocaleString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short'
+        });
+      }
+      function tint(el, n) {
+        el.classList.remove('up', 'down');
+        if (n) el.classList.add(n > 0 ? 'up' : 'down');
+      }
+      function el(tag, text, cls) {
+        const e = document.createElement(tag);
+        if (text !== undefined) e.textContent = text;
+        if (cls) e.className = cls;
+        return e;
+      }
+      function button(text, action) {
+        const b = el('button', text);
+        b.type = 'button';
+        b.onclick = action;
+        return b;
+      }
+      function icon(dir) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('class', 'icon');
+        svg.setAttribute('aria-hidden', 'true');
+        const p = document.createElementNS(svg.namespaceURI, 'path');
+        p.setAttribute('d', dir ? 'M3 7V5h7l2 2h9v13H3Z' : 'M6 3h8l4 4v14H6ZM14 3v5h4');
+        p.setAttribute('fill', 'none');
+        p.setAttribute('stroke', 'currentColor');
+        p.setAttribute('stroke-width', '1.7');
+        p.setAttribute('stroke-linejoin', 'round');
+        svg.append(p);
+        return svg;
+      }
+      function navigate(n) {
+        current = n;
+        $('search').value = '';
+        $('status').value = 'all';
+        page = 0;
+        refresh();
+        $('explorerTitle').tabIndex = -1;
+        $('explorerTitle').focus();
+      }
+      function openNode(n) {
+        navigate(n.type === 'dir' ? n : parents.get(n) || data.root);
+      }
+      function indexReport() {
+        changed = [];
+        parents = new WeakMap();
+        const stack = [data.root];
+        while (stack.length) {
+          const n = stack.pop();
+          if (statuses.has(n.status)) changed.push(n);
+          for (const child of n.children || []) {
+            parents.set(child, n);
+            stack.push(child);
+          }
+        }
+      }
+      function summary() {
+        for (const key of ['before', 'after']) {
+          const s = data[key];
+          $(key + 'Size').textContent = bytes(s.size);
+          $(key + 'Counts').textContent = s.files.toLocaleString() + ' files · ' + s.directories.toLocaleString() + ' directories';
+          $(key + 'Source').textContent = [s.source || 'Source unavailable', s.root && 'Root: ' + s.root, captureTime(s.capturedAt)].filter(Boolean).join(' · ');
+        }
+        const delta = data.after.size - data.before.size;
+        $('netSize').textContent = bytes(delta, true);
+        tint($('netSize'), delta);
+        $('netPercent').textContent = percentage({
+          before: data.before.size,
+          after: data.after.size,
+          delta
+        }) + ' from before';
+        $('netCounts').textContent = signed(data.after.files - data.before.files) + ' files · ' + signed(data.after.directories - data.before.directories) + ' directories';
+        $('increased').textContent = bytes(data.increased, true);
+        $('decreased').textContent = bytes(-Math.abs(data.decreased), true);
+        $('changeCount').textContent = changed.length.toLocaleString() + ' changed paths';
+        $('csv').disabled = !changed.length;
+      }
+      function largestChanges(nodes) {
+        const top = {
+          file: {
+            growing: [],
+            shrinking: []
+          },
+          dir: {
+            growing: [],
+            shrinking: []
+          }
+        };
+        // One pass over changed paths, with at most five retained per category.
+        // Never sort or copy an unbounded list just to render twenty ranking rows.
+        for (const node of nodes) {
+          if (!node.delta || !top[node.type]) continue;
+          const growth = node.delta > 0;
+          const list = top[node.type][growth ? 'growing' : 'shrinking'];
+          let index = list.findIndex(other => growth ? node.delta > other.delta : node.delta < other.delta);
+          if (index < 0) index = list.length;
+          if (index >= 5) continue;
+          list.splice(index, 0, node);
+          if (list.length > 5) list.pop();
+        }
+        return top;
+      }
+      function rankings() {
+        const area = $('rankings');
+        area.replaceChildren();
+        const largest = largestChanges(changed);
+        for (const type of ['file', 'dir']) for (const growth of [true, false]) {
+          const part = el('section');
+          part.append(el('h3', (growth ? 'Growing ' : 'Shrinking ') + (type === 'file' ? 'files' : 'directories')));
+          const list = el('ol');
+          const top = largest[type][growth ? 'growing' : 'shrinking'];
+          for (const n of top) {
+            const li = el('li');
+            const b = button(n.path || n.name, () => openNode(n));
+            b.title = n.path;
+            li.append(b, el('small', bytes(n.delta, true), growth ? 'up' : 'down'));
+            list.append(li);
+          }
+          if (!top.length) list.append(el('li', 'No ' + (growth ? 'increases' : 'decreases'), 'muted'));
+          part.append(list);
+          area.append(part);
+        }
+      }
+      function refresh() {
+        const q = $('search').value.trim().toLocaleLowerCase(),
+          status = $('status').value;
+        const global = !!q || status !== 'all';
+        visible = (global ? changed : current.children || []).filter(n => (!q || (n.path || n.name).toLocaleLowerCase().includes(q)) && (status === 'all' || n.status === status));
+        visible.sort((a, b) => {
+          let av = sortKey === 'percent' ? a.before ? a.delta / a.before : a.after ? Infinity : 0 : a[sortKey],
+            bv = sortKey === 'percent' ? b.before ? b.delta / b.before : b.after ? Infinity : 0 : b[sortKey];
+          return sortDirection * (typeof av === 'number' ? av === bv ? 0 : av > bv ? 1 : -1 : String(av || '').localeCompare(String(bv || ''))) || (a.path || a.name).localeCompare(b.path || b.name);
+        });
+        const crumbs = $('crumbs');
+        crumbs.replaceChildren();
+        if (global) crumbs.append(button('Back to directory', () => navigate(current)), el('span', 'All changed paths'));else {
+          const chain = [];
+          let n = current;
+          while (n) {
+            chain.push(n);
+            n = parents.get(n);
+          }
+          for (const item of chain.reverse()) crumbs.append(button(item.name || item.path || 'Root', () => navigate(item)));
+        }
+        $('tableCaption').textContent = global ? 'Global results · unchanged ancestors excluded' : 'Changed children of ' + (current.path || current.name);
+        renderPage();
+      }
+      function renderPage() {
+        const size = Number($('pageSize').value),
+          pages = Math.max(1, Math.ceil(visible.length / size));
+        page = Math.min(page, pages - 1);
+        const start = page * size,
+          rows = $('rows');
+        rows.replaceChildren();
+        for (const n of visible.slice(start, start + size)) {
+          const row = el('tr');
+          const name = el('td');
+          const entry = el('div', undefined, 'entry');
+          entry.append(icon(n.type === 'dir'));
+          const box = el('div');
+          if (n.type === 'dir') {
+            const b = button(n.name || n.path || 'Root', () => navigate(n));
+            b.setAttribute('aria-label', 'Open directory ' + (n.path || n.name));
+            box.append(b);
+          } else box.append(el('span', n.name));
+          box.append(el('span', n.path, 'path'));
+          entry.append(box);
+          name.append(entry);
+          row.append(name);
+          for (const key of ['before', 'after', 'delta', 'percent', 'beforeFiles', 'afterFiles', 'status']) {
+            const td = el('td');
+            td.textContent = key === 'percent' ? percentage(n) : key === 'status' ? n.status === 'unchanged' ? 'Context' : n.status : key.includes('Files') ? (n[key] || 0).toLocaleString() : bytes(n[key], key === 'delta');
+            if (key === 'delta') tint(td, n.delta);
+            if (key === 'status') {
+              td.textContent = '';
+              const badge = el('span', n.status === 'unchanged' ? 'Context' : n.status, 'badge');
+              badge.title = n.beforeType && n.afterType && n.beforeType !== n.afterType ? n.beforeType + ' → ' + n.afterType : n.status;
+              td.append(badge);
+            }
+            row.append(td);
+          }
+          rows.append(row);
+        }
+        $('empty').hidden = !!visible.length;
+        $('empty').replaceChildren(el('strong', changed.length ? 'No matching changes' : 'No changes found'), el('span', changed.length ? 'Try another search, clear the status filter, or open a different directory.' : 'The snapshots have identical compared metadata.'));
+        $('range').textContent = visible.length ? (start + 1).toLocaleString() + '–' + Math.min(start + size, visible.length).toLocaleString() + ' of ' + visible.length.toLocaleString() + ' paths' : '0 paths';
+        $('pageLabel').textContent = page + 1 + ' / ' + pages;
+        $('previous').disabled = page === 0;
+        $('next').disabled = page >= pages - 1;
+        for (const th of $('head').children) th.setAttribute('aria-sort', th.dataset.key === sortKey ? sortDirection === 1 ? 'ascending' : 'descending' : 'none');
+      }
+      function csvCell(value) {
+        let text = String(value ?? '');
+        if (/^[\s\u0000-\u001f]*[=+@\-]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
+      }
+      function exportCSV() {
+        const fields = ['path', 'type', 'beforeType', 'afterType', 'before', 'after', 'delta', 'percent', 'beforeFiles', 'afterFiles', 'status'];
+        const lines = [fields.join(',')];
+        for (const n of changed) lines.push(fields.map(k => csvCell(k === 'percent' ? n.before === 0 ? '' : n.delta / n.before * 100 : n[k])).join(','));
+        const url = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], {
+          type: 'text/csv;charset=utf-8'
+        }));
+        const a = el('a');
+        a.href = url;
+        a.download = 'webdiskstat-changes.csv';
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      for (const [key, label] of columns) {
+        const th = el('th');
+        th.scope = 'col';
+        th.dataset.key = key;
+        th.append(button(label, () => {
+          if (sortKey === key) sortDirection *= -1;else {
+            sortKey = key;
+            sortDirection = key === 'name' || key === 'status' ? 1 : -1;
+          }
+          page = 0;
+          refresh();
+        }));
+        $('head').append(th);
+      }
+      let searchTimer;
+      $('search').oninput = () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          page = 0;
+          refresh();
+        }, 160);
+      };
+      $('status').onchange = () => {
+        page = 0;
+        refresh();
+      };
+      $('pageSize').onchange = () => {
+        page = 0;
+        renderPage();
+      };
+      $('reset').onclick = () => navigate(data.root);
+      $('previous').onclick = () => {
+        page--;
+        renderPage();
+      };
+      $('next').onclick = () => {
+        page++;
+        renderPage();
+      };
+      $('csv').onclick = exportCSV;
+      async function boot() {
+        $('retry').hidden = true;
+        $('loading').hidden = false;
+        $('loading').textContent = 'Opening comparison…';
+        try {
+          const payload = JSON.parse($('diffData').textContent);
+          if (payload.format !== 'gds-diff-json-v1') throw new Error('Unsupported comparison format.');
+          const compressed = payload.encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
+          if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot decompress reports. Open this file in a current Chrome, Edge, Firefox, or Safari.');
+          const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
+          data = JSON.parse(await new Response(stream).text());
+          indexReport();
+          current = data.root;
+          summary();
+          rankings();
+          refresh();
+          $('loading').hidden = true;
+          $('report').hidden = false;
+        } catch (error) {
+          $('loading').textContent = error.message || 'Unable to open comparison.';
+          $('retry').hidden = false;
+        }
+      }
+      $('retry').onclick = boot;
+      boot();
+    </script>
+  </body>
+</html>

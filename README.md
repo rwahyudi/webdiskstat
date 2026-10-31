@@ -83,14 +83,35 @@ Read a compressed scanner export:
 ./webdiskstat report.json.gz -o diskstats.html
 ```
 
+## Compare GDU Snapshots
+
+Use `--diff` with a baseline first and a later snapshot second:
+
+```sh
+gdu -o before.json /path/to/data
+# Capture the same scan root again after changes.
+gdu -o after.json /path/to/data
+webdiskstat --diff before.json after.json -o changes.html
+```
+
+Comparison accepts GDU JSON exports and `.gz` exports only. Both scan roots must match; different roots cause an error rather than an implicit relative-path comparison. NCDU remains supported for single-input reports, not comparisons. At most one comparison input can be `-` for stdin.
+
+The offline comparison report includes before/after totals, net and percentage changes, separate storage increases and decreases, largest changes, and a searchable, sortable changes-only directory browser with status filters and CSV export. Ancestor directories remain navigable even when their net change is zero. Optional `--password` encryption protects the embedded comparison data just as it does single-input reports.
+
+This compares recorded usage and metadata, not file contents. Renames appear as a removal and an addition; unchanged file size and metadata do not prove identical contents. For meaningful results, capture both snapshots with consistent scanner settings and coverage.
+
+Comparison currently holds snapshots in memory. Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). It is not intended for 100-million-file scans; memory requirements can be substantial even below the limits.
+
 ## Options
 
 ```text
 usage: webdiskstat [--input-type gdu|ncdu] [-o OUTPUT] [--password PASSWORD] [input]
+       webdiskstat --diff [-o OUTPUT] [--password PASSWORD] baseline current
 ```
 
 - `input`: scanner JSON file, `.gz` file, or `-` for stdin. Defaults to stdin.
 - `--input-type`: input JSON format, either `gdu` or `ncdu`. Defaults to `gdu`.
+- `--diff`: compare exactly two GDU exports, baseline first and current second. Without this flag, only one input is accepted.
 - `-o, --output`: output HTML path, or `-` for stdout. Defaults to `webdiskstat.html`. Parent directories are created automatically; an existing output file is replaced.
 - `--password PASSWORD`: encrypt the embedded scan data. Defaults to unencrypted.
 - `-v, --version`: print the version and the build date in local time.
