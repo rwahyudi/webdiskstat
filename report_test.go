@@ -423,7 +423,7 @@ func TestTreemapUsesMIMETypeColors(t *testing.T) {
 		`function treemapMimeCategoryForFile(node)`,
 		`function treemapMimeWeightsForNode(node)`,
 		`function dominantTreemapMimeCategory(node)`,
-		`function directoryTreemapBranch(node)`,
+		`function directoryTreemapColorIndex(node)`,
 		`if (node.type === "dir") return directoryTreemapColorFor(node);`,
 		`const category = treemapMimeCategoryForFile(node);`,
 		`.tile-label{background:linear-gradient(90deg,rgba(2,6,23,.56)`,

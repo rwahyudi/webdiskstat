@@ -798,37 +798,6 @@ const TREEMAP_MIME_COLORS = new Map([`,
 	}
 	report = strings.Replace(
 		report,
-		`function directoryTreemapColorFor(node) {
-  const hash = hashString(pathForNode(node) || node.name || String(node.id));
-  const hue = 176 + (hash % 26);
-  const saturation = 52 + (Math.floor(hash / 29) % 18);
-  const lightness = 28 + (Math.floor(hash / 521) % 24);
-  return `+"`hsl(${hue}, ${saturation}%, ${lightness}%)`"+`;
-}`,
-		`function directoryTreemapBranch(node) {
-  let branch = node;
-  let ancestor = parent.get(branch.id);
-  while (ancestor && ancestor !== DATA) {
-    branch = ancestor;
-    ancestor = parent.get(branch.id);
-  }
-  return branch;
-}
-
-function directoryTreemapColorFor(node) {
-  const branch = directoryTreemapBranch(node);
-  const hash = hashString(pathForNode(branch) || branch.name || String(branch.id));
-  const base = TREEMAP_DIRECTORY_COLORS[Math.abs(hash) % TREEMAP_DIRECTORY_COLORS.length];
-  const relativeDepth = Math.max(0, (node.depth || 0) - (branch.depth || 0));
-  const blend = Math.min(18, relativeDepth * 4);
-  if (!blend) return base;
-  const mix = relativeDepth % 2 ? "white" : "black";
-  return `+"`color-mix(in srgb, ${base} ${100 - blend}%, ${mix} ${blend}%)`"+`;
-}`,
-		1,
-	)
-	report = strings.Replace(
-		report,
 		`function treemapColorFor(node) {
   if (node.ext === "[other]") return TREEMAP_SMALLER_ENTRIES_COLOR;
   const category = node.type === "dir" ? dominantTreemapMimeCategory(node) : treemapMimeCategoryForFile(node);

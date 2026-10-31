@@ -1028,25 +1028,81 @@ function dominantTreemapMimeCategory(node) {
   return bestCategory;
 }
 
-function directoryTreemapBranch(node) {
-  let branch = node;
-  let ancestor = nodeParent(branch);
-  while (ancestor && ancestor !== DATA) {
-    branch = ancestor;
-    ancestor = nodeParent(branch);
+const treemapDirectorySiblingColorIndices = new WeakMap();
+
+function directoryTreemapColorIndex(node) {
+  if (!node || typeof node !== "object") return 0;
+  const paletteSize = TREEMAP_DIRECTORY_COLORS.length;
+  const root = DATA;
+  const rootIndex = Math.abs(hashString(pathForNode(root) || root?.name || String(root?.id))) % paletteSize;
+  if (node === root) return rootIndex;
+
+  const chain = [];
+  let current = node;
+  while (current && current !== root) {
+    chain.push(current);
+    current = nodeParent(current);
   }
-  return branch;
+
+  let parentIndex = rootIndex;
+  for (let index = chain.length - 1; index >= 0; index--) {
+    const child = chain[index];
+    const parentNode = nodeParent(child);
+    let colorIndex = -1;
+    if (parentNode) {
+      let siblingIndices = treemapDirectorySiblingColorIndices.get(parentNode);
+      if (!siblingIndices) {
+        const colorCohortLimit = Math.max(...TREEMAP_TILE_CAP_OPTIONS);
+        const siblings = treemapItems(parentNode, colorCohortLimit)
+          .filter(item => item.type === "dir")
+          .sort((left, right) => {
+            const leftPath = pathForNode(left);
+            const rightPath = pathForNode(right);
+            return leftPath < rightPath ? -1 : leftPath > rightPath ? 1 : 0;
+          });
+        siblingIndices = new Map();
+        const usedIndices = new Set();
+        siblings.forEach(sibling => {
+          const siblingPath = pathForNode(sibling) || sibling.name || String(sibling.id);
+          const preferredIndex = Math.abs(hashString(siblingPath)) % paletteSize;
+          let colorIndex = -1;
+          for (let offset = 0; offset < paletteSize; offset++) {
+            const candidate = (preferredIndex + offset) % paletteSize;
+            if (candidate !== parentIndex && !usedIndices.has(candidate)) {
+              colorIndex = candidate;
+              break;
+            }
+          }
+          if (colorIndex < 0) {
+            for (let offset = 0; offset < paletteSize; offset++) {
+              const candidate = (preferredIndex + offset) % paletteSize;
+              if (candidate !== parentIndex) {
+                colorIndex = candidate;
+                break;
+              }
+            }
+          }
+          if (colorIndex >= 0) {
+            siblingIndices.set(sibling, colorIndex);
+            usedIndices.add(colorIndex);
+          }
+        });
+        treemapDirectorySiblingColorIndices.set(parentNode, siblingIndices);
+      }
+      if (siblingIndices.has(child)) colorIndex = siblingIndices.get(child);
+    }
+
+    if (colorIndex < 0) {
+      colorIndex = Math.abs(hashString(pathForNode(child) || child.name || String(child.id))) % paletteSize;
+      if (colorIndex === parentIndex) colorIndex = (colorIndex + 1) % paletteSize;
+    }
+    parentIndex = colorIndex;
+  }
+  return parentIndex;
 }
 
 function directoryTreemapColorFor(node) {
-  const branch = directoryTreemapBranch(node);
-  const hash = hashString(pathForNode(branch) || branch.name || String(branch.id));
-  const base = TREEMAP_DIRECTORY_COLORS[Math.abs(hash) % TREEMAP_DIRECTORY_COLORS.length];
-  const relativeDepth = Math.max(0, (node.depth || 0) - (branch.depth || 0));
-  const blend = Math.min(18, relativeDepth * 4);
-  if (!blend) return base;
-  const mix = relativeDepth % 2 ? "white" : "black";
-  return `color-mix(in srgb, ${base} ${100 - blend}%, ${mix} ${blend}%)`;
+  return TREEMAP_DIRECTORY_COLORS[directoryTreemapColorIndex(node)];
 }
 
 function treemapColorFor(node) {
