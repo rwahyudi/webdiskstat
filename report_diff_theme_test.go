@@ -112,7 +112,9 @@ with sync_playwright() as p:
   assert page.locator('body').evaluate('(e)=>getComputedStyle(e).backgroundColor')==reference.locator('body').evaluate('(e)=>getComputedStyle(e).backgroundColor')
   if out:page.screenshot(path=str(pathlib.Path(out)/('desktop-'+theme+'.png')))
   assert page.locator('#rows tr').first.bounding_box()['height']<=40
-  assert page.locator('#rows').bounding_box()['y']<650,page.locator('#rows').bounding_box()
+  summary=page.locator('#summarySection').bounding_box();ranking=page.locator('#rankingsSection').bounding_box()
+  assert summary['y']+summary['height']<=ranking['y']
+  assert abs(summary['x']-ranking['x'])<1 and abs(summary['width']-ranking['width'])<1
   assert page.locator('#rows tr').count()==50
   # Exercise global status/search/navigation, pagination, and export in both themes.
   page.locator('#search').fill('grow.bin');page.wait_for_timeout(250)
@@ -132,7 +134,7 @@ with sync_playwright() as p:
   page.set_viewport_size({'width':390,'height':844})
   assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
   if out:page.screenshot(path=str(pathlib.Path(out)/('mobile-'+theme+'.png')))
-  page.locator('#explorerTitle').scroll_into_view_if_needed()
+  page.locator('#explorerTitle').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY-8)')
   assert page.locator('.scroll').evaluate('(e)=>e.scrollWidth>e.clientWidth')
   assert page.locator('#status').bounding_box()['height']>=36
   if out:page.screenshot(path=str(pathlib.Path(out)/('mobile-table-'+theme+'.png')))

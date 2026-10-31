@@ -27,7 +27,15 @@ func diffReportFixture() *DiffReport {
 		root.Children = append(root.Children, &DiffNode{Name: name, Path: root.Path + "/" + name, Type: "file", Before: 1, After: 2, Delta: 1, Status: "grown"})
 	}
 	root.Children = append(root.Children, &DiffNode{Name: "</script><script>window.diffXSS=1</script>", Path: "/private-root/=formula", Type: "file", Status: "changed"})
-	return &DiffReport{Before: DiffSnapshot{Source: "baseline-secret.json", Root: root.Path, Size: 500, Files: 262, Directories: 2, CapturedAt: "2026-10-31T00:00:00Z"}, After: DiffSnapshot{Source: "current-secret.json", Root: root.Path, Size: 500, Files: 262, Directories: 2}, Root: root, Increased: 360, Decreased: 100, StatusCounts: map[string]int{"added": 1, "removed": 1, "grown": 260, "changed": 1}}
+	rankings := DiffRankings{
+		GrowingFiles:   []DiffRankingRow{{Name: "grow.bin", Path: "/private-root/offset/grow.bin", Type: "file", After: 100, Delta: 100, Status: "added"}},
+		ShrinkingFiles: []DiffRankingRow{{Name: "shrink.bin", Path: "/private-root/offset/shrink.bin", Type: "file", Before: 100, Delta: -100, Status: "removed"}},
+	}
+	for i := 0; i < 99; i++ {
+		n := root.Children[i+1]
+		rankings.GrowingFiles = append(rankings.GrowingFiles, DiffRankingRow{Name: n.Name, Path: n.Path, Type: n.Type, Before: n.Before, After: n.After, Delta: n.Delta, Status: n.Status})
+	}
+	return &DiffReport{Before: DiffSnapshot{Source: "baseline-secret.json", Root: root.Path, Size: 500, Files: 262, Directories: 2, CapturedAt: "2026-10-31T00:00:00Z"}, After: DiffSnapshot{Source: "current-secret.json", Root: root.Path, Size: 500, Files: 262, Directories: 2}, Root: root, Increased: 360, Decreased: 100, StatusCounts: map[string]int{"added": 1, "removed": 1, "grown": 260, "changed": 1}, Rankings: rankings}
 }
 
 func diffPayloadFromHTML(t *testing.T, html string) map[string]any {
@@ -179,12 +187,8 @@ with sync_playwright() as p:
  times=page.evaluate("[captureTime('1793404800'),captureTime('2026-10-31T00:00:00Z'),captureTime(''),captureTime('invalid'),captureTime(null),captureTime('99999999999999999')]")
  assert times[0]==times[1] and '2026' in times[0], times
  assert all(t=='Capture time unavailable' for t in times[2:]), times
- largest=page.evaluate("""() => {
-  const nodes=Array.from({length:100000},(_,i)=>({type:i%2?'dir':'file',delta:(i%4<2?1:-1)*(i+1)}));
-  const top=largestChanges(nodes);
-  return Object.fromEntries(Object.entries(top).map(([type,directions])=>[type,Object.fromEntries(Object.entries(directions).map(([direction,list])=>[direction,list.map(n=>n.delta)]))]));
- }""")
- assert largest=={'file':{'growing':[99997,99993,99989,99985,99981],'shrinking':[-99999,-99995,-99991,-99987,-99983]},'dir':{'growing':[99998,99994,99990,99986,99982],'shrinking':[-100000,-99996,-99992,-99988,-99984]}},largest
+ assert page.evaluate('typeof largestChanges')=='undefined'
+ assert page.locator('[data-category="growingFiles"] tbody tr').count()==10
  page.locator('#next').click();assert page.locator('#pageLabel').inner_text()=='2 / 6'
  page.locator('#pageSize').select_option('200');assert page.locator('#rows tr').count()<=200
  page.locator('#search').fill('grow.bin');page.wait_for_timeout(250)
@@ -217,7 +221,7 @@ with sync_playwright() as p:
  assert len(list(csv.DictReader(io.StringIO(pathlib.Path(dl.value.path()).read_text(encoding='utf-8-sig')))))==263
  page.locator('#reset').click()
  page.get_by_role('button',name='Name / path',exact=True).click()
- assert page.locator('th').first.get_attribute('aria-sort')=='ascending'
+ assert page.locator('#head th').first.get_attribute('aria-sort')=='ascending'
  page.locator('#search').focus();page.keyboard.press('Tab');assert page.locator('#status').evaluate('(e)=>e===document.activeElement')
  out=os.environ.get('DIFF_REPORT_SCREENSHOTS')
  if out:
@@ -244,5 +248,5 @@ with sync_playwright() as p:
  assert not errors, errors
  assert not requests, requests
  browser.close()
- print('PASS: desktop/mobile, human-readable capture times, bounded top-five rankings, bounded rows, global search, filters, navigation, sorting, CSV safety/completeness, no-change, XSS, keyboard, encrypted unlock/retry, pure-JS crypto fallback, zero network requests')
+ print('PASS: desktop/mobile, human-readable capture times, dedicated default-ten rankings, bounded rows, global search, filters, navigation, sorting, CSV safety/completeness, no-change, XSS, keyboard, encrypted unlock/retry, pure-JS crypto fallback, zero network requests')
 `

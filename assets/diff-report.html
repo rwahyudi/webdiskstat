@@ -83,13 +83,6 @@
         margin-top: 10px;
         overflow: hidden;
       }
-      .overview {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
-        gap: 10px;
-        align-items: start;
-      }
-      .overview > .panel { min-width: 0; }
       .summary {
         display: grid;
         grid-template-columns: 1fr 1fr 1.2fr;
@@ -143,21 +136,26 @@
         gap: 12px;
         padding: 8px 12px;
       }
-      .rankings ol {
-        margin: 0;
-        padding: 0;
-        list-style: none;
+      .ranking-scroll {
+        max-height: 380px;
+        overflow: auto;
+        scrollbar-color: var(--muted) var(--panel-2);
       }
-      .rankings li {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-        border-top: 1px solid var(--subtle-line);
-      }
+      .ranking-table { table-layout: fixed; font-size: 12px; }
+      .ranking-table caption { padding: 0 0 5px; font-size: 12px; font-weight: 700; color: var(--ink); }
+      .ranking-table th { position: sticky; top: 0; z-index: 1; padding: 5px 6px; font-size: 11px; }
+      .ranking-table th:first-child { min-width: 0; width: 70%; }
+      .ranking-table th:last-child { width: 30%; }
+      .ranking-table td { height: 30px; padding: 2px 6px; }
+      .ranking-table td:first-child { width: auto; max-width: none; }
+      .ranking-table td:first-child button { width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .ranking-table td:last-child { font-size: 11px; }
+      .ranking-table td.ranking-empty { color: var(--muted); text-align: left; }
+      .ranking-controls { display: flex; gap: 8px; align-items: center; }
+      .ranking-controls label { margin: 0; }
+      #rankingMessage { margin: 0; }
       .rankings button {
         display: block;
-        flex: 1;
         min-width: 0;
         text-align: left;
         overflow: hidden;
@@ -171,10 +169,6 @@
         min-height: 28px;
         font-size: 12px;
         box-shadow: none;
-      }
-      .rankings small {
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
       }
       .section-head {
         padding: 7px 12px;
@@ -422,13 +416,10 @@
         color: var(--muted);
         font-size: 11px;
       }
-      @media(max-width:900px) {
+      @media(max-width:1100px) {
         .rankings {
           grid-template-columns: repeat(2,minmax(0,1fr));
         }
-      }
-      @media(max-width:1100px) {
-        .overview { grid-template-columns: 1fr; gap: 0; }
       }
       @media(max-width:600px) {
         header {
@@ -459,7 +450,7 @@
           font-size: 18px;
         }
         .rankings {
-          grid-template-columns: repeat(2,minmax(0,1fr));
+          grid-template-columns: 1fr;
           padding: 8px 10px;
           gap: 12px;
         }
@@ -533,12 +524,6 @@
       <!-- DIFF_THEME_SWITCH -->
     </header>
     <main>
-      <h1>
-        What changed on disk?
-      </h1>
-      <p class="muted">
-        Compare snapshot metadata, not file contents. Renames appear as a removal and an addition.
-      </p>
       <div id="loading" role="status" aria-live="polite">
         Opening comparison…
       </div>
@@ -546,8 +531,7 @@
         Try opening again
       </button>
       <div id="report" hidden>
-        <div class="overview">
-        <section class="panel" aria-label="Comparison summary">
+        <section id="summarySection" class="panel" aria-label="Comparison summary">
           <div class="summary">
             <article>
               <h2>
@@ -598,22 +582,28 @@
             </span>
           </div>
         </section>
-        <section class="panel" aria-labelledby="largestTitle">
+        <section id="rankingsSection" class="panel" aria-labelledby="largestTitle">
           <div class="section-head">
             <h2 id="largestTitle">
               Largest changes
             </h2>
-            <span class="muted">
-              Directories include their descendants
-            </span>
+            <div class="ranking-controls">
+              <label for="rankLimit">Entries per category</label>
+              <select id="rankLimit" aria-controls="rankings">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
           </div>
           <div id="rankings" class="rankings">
           </div>
           <div class="notice">
             Gross totals count each file and each directory’s own allocation once. Directory rankings overlap and should not be added together.
+            <p id="rankingMessage" role="status" aria-live="polite" hidden></p>
           </div>
         </section>
-        </div>
         <section class="panel" aria-labelledby="explorerTitle">
           <div class="section-head">
             <h2 id="explorerTitle">
@@ -906,50 +896,75 @@
         $('changeCount').textContent = changed.length.toLocaleString() + ' changed paths';
         $('csv').disabled = !changed.length;
       }
-      function largestChanges(nodes) {
-        const top = {
-          file: {
-            growing: [],
-            shrinking: []
-          },
-          dir: {
-            growing: [],
-            shrinking: []
+      function openRanking(row) {
+        // Ranking rows are flat, separate records, not browser-tree objects.
+        // Resolve only on click; no second full path index is kept in memory.
+        const stack = [data.root];
+        while (stack.length) {
+          const node = stack.pop();
+          if (node.path === row.path) {
+            $('rankingMessage').hidden = true;
+            openNode(node);
+            return;
           }
-        };
-        // One pass over changed paths, with at most five retained per category.
-        // Never sort or copy an unbounded list just to render twenty ranking rows.
-        for (const node of nodes) {
-          if (!node.delta || !top[node.type]) continue;
-          const growth = node.delta > 0;
-          const list = top[node.type][growth ? 'growing' : 'shrinking'];
-          let index = list.findIndex(other => growth ? node.delta > other.delta : node.delta < other.delta);
-          if (index < 0) index = list.length;
-          if (index >= 5) continue;
-          list.splice(index, 0, node);
-          if (list.length > 5) list.pop();
+          for (const child of node.children || []) stack.push(child);
         }
-        return top;
+        $('rankingMessage').textContent = 'This path is not present in the directory browser.';
+        $('rankingMessage').hidden = false;
       }
       function rankings() {
         const area = $('rankings');
         area.replaceChildren();
-        const largest = largestChanges(changed);
-        for (const type of ['file', 'dir']) for (const growth of [true, false]) {
+        const requested = Number($('rankLimit').value);
+        const limit = [10, 25, 50, 100].includes(requested) ? requested : 10;
+        const categories = [
+          ['growingFiles', 'Growing files', true],
+          ['shrinkingFiles', 'Shrinking files', false],
+          ['growingDirectories', 'Growing directories', true],
+          ['shrinkingDirectories', 'Shrinking directories', false]
+        ];
+        for (const [key, title, growth] of categories) {
           const part = el('section');
-          part.append(el('h3', (growth ? 'Growing ' : 'Shrinking ') + (type === 'file' ? 'files' : 'directories')));
-          const list = el('ol');
-          const top = largest[type][growth ? 'growing' : 'shrinking'];
-          for (const n of top) {
-            const li = el('li');
-              const b = button(n.name || n.path, () => openNode(n));
-              b.title = n.path;
-              b.setAttribute('aria-label', n.path || n.name);
-            li.append(b, el('small', bytes(n.delta, true), growth ? 'up' : 'down'));
-            list.append(li);
+          part.dataset.category = key;
+          const scroll = el('div', undefined, 'ranking-scroll');
+          scroll.tabIndex = 0;
+          scroll.setAttribute('role', 'region');
+          scroll.setAttribute('aria-label', title);
+          const table = el('table', undefined, 'ranking-table');
+          table.append(el('caption', title));
+          const head = el('thead');
+          const header = el('tr');
+          for (const label of ['Name', 'Change']) {
+            const th = el('th', label);
+            th.scope = 'col';
+            header.append(th);
           }
-          if (!top.length) list.append(el('li', 'No ' + (growth ? 'increases' : 'decreases'), 'muted'));
-          part.append(list);
+          head.append(header);
+          const body = el('tbody');
+          // The sole ranking source is the embedded, precomputed dataset.
+          // Explorer search, sorting, paging, and arrays never feed this view.
+          const source = data.rankings && data.rankings[key];
+          const top = Array.isArray(source) ? source.slice(0, limit) : [];
+          for (const n of top) {
+            const row = el('tr');
+            const name = el('td');
+            const link = button(n.name || n.path, () => openRanking(n));
+            link.title = n.path;
+            link.setAttribute('aria-label', n.path || n.name);
+            name.append(link);
+            row.append(name, el('td', bytes(n.delta, true), growth ? 'up' : 'down'));
+            body.append(row);
+          }
+          if (!top.length) {
+            const row = el('tr');
+            const empty = el('td', 'No ' + (growth ? 'increases' : 'decreases'), 'ranking-empty');
+            empty.colSpan = 2;
+            row.append(empty);
+            body.append(row);
+          }
+          table.append(head, body);
+          scroll.append(table);
+          part.append(scroll);
           area.append(part);
         }
       }
@@ -1082,6 +1097,7 @@
         renderPage();
       };
       $('csv').onclick = exportCSV;
+      $('rankLimit').addEventListener('change', rankings);
       async function boot() {
         $('retry').hidden = true;
         $('loading').hidden = false;

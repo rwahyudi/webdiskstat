@@ -100,6 +100,8 @@ The offline comparison report includes before/after totals, net and percentage c
 
 Comparison reports use the normal report's compact styling and dark/light theme switcher. Theme preferences are remembered when browser storage is available.
 
+The summary and largest-changes sections each span the report width. Largest changes displays 10 entries per category by default, selectable up to 100. Its rankings use one dedicated embedded dataset, independent of file-browser search, filters, sorting, and pagination. Both datasets remain inside the self-contained report and are encrypted together when `--password` is used.
+
 This compares recorded usage and metadata, not file contents. Renames appear as a removal and an addition; unchanged file size and metadata do not prove identical contents. For meaningful results, capture both snapshots with consistent scanner settings and coverage.
 
 Comparison currently holds snapshots in memory. Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). It is not intended for 100-million-file scans; memory requirements can be substantial even below the limits.

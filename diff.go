@@ -15,6 +15,7 @@ type DiffReport struct {
 	Increased    int64          `json:"increased"`
 	Decreased    int64          `json:"decreased"`
 	StatusCounts map[string]int `json:"statusCounts"`
+	Rankings     DiffRankings   `json:"rankings"`
 }
 
 type DiffSnapshot struct {
@@ -69,6 +70,7 @@ func buildDiffReport(before, after *Node, beforeSource, afterSource string) (*Di
 	}
 	statuses := map[string]int{"added": 0, "removed": 0, "grown": 0, "shrunk": 0, "changed": 0, "unchanged": 0}
 	increased, decreased := int64(0), int64(0)
+	rankings := newDiffRankingsBuilder()
 	var build func(string) *DiffNode
 	build = func(p string) *DiffNode {
 		b, bok := bIdx[p]
@@ -121,6 +123,7 @@ func buildDiffReport(before, after *Node, beforeSource, afterSource string) (*Di
 			status = "changed"
 		}
 		delta := av - bv
+		rankings.add(DiffRankingRow{Name: name, Path: p, Type: typ, Before: bv, After: av, Delta: delta, BeforeFiles: bf, AfterFiles: af, Status: status})
 		if status != "unchanged" {
 			statuses[status]++
 		}
@@ -173,7 +176,7 @@ func buildDiffReport(before, after *Node, beforeSource, afterSource string) (*Di
 		return node
 	}
 	root := build(beforeRoot)
-	return &DiffReport{Before: snapshotInfo(before, beforeSource), After: snapshotInfo(after, afterSource), Root: root, Increased: increased, Decreased: decreased, StatusCounts: statuses}, nil
+	return &DiffReport{Before: snapshotInfo(before, beforeSource), After: snapshotInfo(after, afterSource), Root: root, Increased: increased, Decreased: decreased, StatusCounts: statuses, Rankings: rankings.report()}, nil
 }
 
 func cleanDiffRoot(value string) string {
