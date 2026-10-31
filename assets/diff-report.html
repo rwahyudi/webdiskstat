@@ -7,19 +7,23 @@
       webdiskstat · Snapshot comparison
     </title>
     <link rel="icon" href="DIFF_FAVICON">
+    <script>
+      // Restore before styles/body paint; file:// storage may be unavailable.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem('webdiskstat-theme') === 'light' ? 'light' : 'dark';
+      } catch (_) {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    </script>
     <style>
       /* DIFF_FONTS */
+      /* DIFF_THEME_CSS */
       :root {
-        color-scheme: light;
-        --bg: #f1f5f9;
-        --paper: #fff;
-        --ink: #172b46;
-        --muted: #52647c;
-        --line: #d7e0eb;
-        --blue: #1d4ed8;
-        --up: #a53320;
-        --down: #087566;
-        --soft: #eff6ff;
+        --paper: var(--panel);
+        --blue: var(--accent);
+        --up: var(--danger);
+        --down: var(--accent-2);
+        --soft: var(--row-hover);
       }
       * {
         box-sizing: border-box;
@@ -28,86 +32,93 @@
         margin: 0;
         background: var(--bg);
         color: var(--ink);
-        font: 14px/1.6 "Noto Sans",sans-serif;
+        font: 13px/1.45 "Noto Sans",sans-serif;
       }
       header {
-        background: var(--paper);
+        background: var(--header);
         border-bottom: 1px solid var(--line);
-        padding: 18px max(24px,calc((100% - 1440px)/2));
+        min-height: 58px;
+        padding: 10px 16px;
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 12px;
       }
       header strong {
-        font-size: 21px;
-        letter-spacing: -.6px;
+        font-size: 14px;
       }
-      header span {
+      header > span {
         border-left: 1px solid var(--line);
-        padding-left: 16px;
+        padding-left: 12px;
         color: var(--muted);
       }
       main {
-        max-width: 1488px;
+        min-width: 0;
         margin: auto;
-        padding: 30px 24px 40px;
+        padding: 10px 16px 16px;
       }
       h1 {
-        font-size: 29px;
+        font-size: 15px;
         line-height: 1.25;
-        letter-spacing: -.8px;
-        margin: 0 0 10px;
+        margin: 0;
       }
       h2 {
-        font-size: 19px;
+        font-size: 13px;
         margin: 0;
       }
       h3 {
-        font-size: 14px;
-        margin: 0 0 12px;
+        font-size: 12px;
+        margin: 0 0 4px;
       }
       .muted,small {
         color: var(--muted);
       }
       p {
-        margin: 8px 0 20px;
+        margin: 4px 0 10px;
         max-width: 85ch;
       }
       .panel {
         background: var(--paper);
         border: 1px solid var(--line);
-        border-radius: 10px;
-        margin-top: 24px;
+        border-radius: 4px;
+        margin-top: 10px;
         overflow: hidden;
       }
+      .overview {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
+        gap: 10px;
+        align-items: start;
+      }
+      .overview > .panel { min-width: 0; }
       .summary {
         display: grid;
         grid-template-columns: 1fr 1fr 1.2fr;
       }
       .summary article {
-        padding: 24px;
+        padding: 10px 12px;
         min-width: 0;
       }
       .summary article+article {
         border-left: 1px solid var(--line);
       }
       .summary h2 {
-        font-size: 13px;
+        font-size: 11px;
+        text-transform: uppercase;
         color: var(--muted);
         font-weight: 400;
       }
       .metric {
         display: block;
-        font-size: 32px;
+        font-size: 20px;
         font-weight: 700;
-        line-height: 1.5;
+        line-height: 1.4;
         font-variant-numeric: tabular-nums;
-        letter-spacing: -1px;
       }
       .source {
         display: block;
         overflow-wrap: anywhere;
-        margin-top: 14px;
+        margin-top: 4px;
+        font-size: 11px;
       }
       .up {
         color: var(--up);
@@ -117,11 +128,11 @@
       }
       .gross {
         display: flex;
-        gap: 28px;
+        gap: 18px;
         flex-wrap: wrap;
-        padding: 16px 24px;
+        padding: 6px 12px;
         border-top: 1px solid var(--line);
-        background: #f8fafc;
+        background: var(--panel-2);
       }
       .gross strong {
         font-variant-numeric: tabular-nums;
@@ -129,8 +140,8 @@
       .rankings {
         display: grid;
         grid-template-columns: repeat(4,minmax(0,1fr));
-        gap: 24px;
-        padding: 24px;
+        gap: 12px;
+        padding: 8px 12px;
       }
       .rankings ol {
         margin: 0;
@@ -138,11 +149,16 @@
         list-style: none;
       }
       .rankings li {
-        padding: 8px 0;
-        border-top: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        border-top: 1px solid var(--subtle-line);
       }
       .rankings button {
         display: block;
+        flex: 1;
+        min-width: 0;
         text-align: left;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -152,36 +168,43 @@
         border: 0;
         color: var(--blue);
         background: none;
-        min-height: 30px;
+        min-height: 28px;
+        font-size: 12px;
+        box-shadow: none;
       }
       .rankings small {
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
       .section-head {
-        padding: 20px 24px;
+        padding: 7px 12px;
+        background: var(--header);
+        border-bottom: 1px solid var(--line);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 16px;
+        gap: 10px;
         flex-wrap: wrap;
       }
       button,input,select {
         font: inherit;
       }
       button,select {
-        min-height: 38px;
-        padding: 6px 12px;
+        min-height: 36px;
+        padding: 5px 10px;
         border: 1px solid var(--line);
         border-radius: 6px;
-        background: var(--paper);
+        background: var(--control);
         color: var(--ink);
+        box-shadow: var(--shadow-soft);
       }
       button {
         cursor: pointer;
       }
       button:hover {
         background: var(--soft);
-        border-color: #93afe4;
+        border-color: var(--line);
+        color: var(--accent);
       }
       button:disabled {
         opacity: .5;
@@ -190,15 +213,15 @@
       button.primary {
         background: var(--blue);
         border-color: var(--blue);
-        color: white;
+        color: var(--accent-contrast);
       }
       input {
-        min-height: 40px;
-        padding: 8px 12px;
+        min-height: 36px;
+        padding: 6px 10px;
         border: 1px solid var(--line);
         border-radius: 6px;
         color: var(--ink);
-        background: var(--paper);
+        background: var(--control);
         width: 100%;
         caret-color: var(--blue);
       }
@@ -206,19 +229,19 @@
         color: var(--muted);
       }
       :focus-visible {
-        outline: 3px solid #2563eb;
-        outline-offset: 3px;
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
       }
       ::selection {
-        background: #bfdbfe;
-        color: #172b46;
+        background: var(--row-active);
+        color: var(--ink);
       }
       .tools {
         display: flex;
         align-items: end;
-        gap: 16px;
+        gap: 10px;
         flex-wrap: wrap;
-        padding: 0 24px 18px;
+        padding: 8px 12px;
       }
       .search {
         flex: 1;
@@ -231,7 +254,7 @@
         margin-bottom: 5px;
       }
       .crumbs {
-        padding: 12px 24px;
+        padding: 4px 8px;
         border-top: 1px solid var(--line);
         display: flex;
         gap: 8px;
@@ -242,10 +265,14 @@
         color: var(--blue);
         max-width: 100%;
         overflow-wrap: anywhere;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        min-height: 30px;
       }
       .scroll {
         overflow: auto;
-        scrollbar-color: #94a3b8 var(--bg);
+        scrollbar-color: var(--muted) var(--panel-2);
       }
       table {
         width: 100%;
@@ -255,12 +282,13 @@
       }
       caption {
         text-align: left;
-        padding: 8px 24px;
+        padding: 5px 12px;
         color: var(--muted);
       }
       th {
         text-align: right;
-        background: #f8fafc;
+        background: var(--header);
+        color: var(--muted);
         border-top: 1px solid var(--line);
         border-bottom: 1px solid var(--line);
         white-space: nowrap;
@@ -274,16 +302,20 @@
         border: 0;
         background: none;
         border-radius: 0;
+        color: var(--muted);
+        font-weight: 700;
+        box-shadow: none;
       }
       td {
-        padding: 10px 14px;
-        border-bottom: 1px solid #e8eef5;
+        padding: 3px 12px;
+        height: 36px;
+        border-bottom: 1px solid var(--subtle-line);
         text-align: right;
         white-space: nowrap;
       }
       td:first-child {
         text-align: left;
-        width: 100%;
+        width: 35%;
         max-width: 480px;
       }
       td:first-child button {
@@ -298,14 +330,14 @@
         overflow-wrap: anywhere;
       }
       td:first-child span.path {
-        display: block;
+        display: none;
         color: var(--muted);
         font-size: 11px;
         white-space: normal;
         overflow-wrap: anywhere;
       }
       tr:hover td {
-        background: #f8fafc;
+        background: var(--row-hover);
       }
       .entry {
         display: flex;
@@ -316,20 +348,21 @@
         width: 18px;
         height: 18px;
         flex-shrink: 0;
-        color: #64748b;
+        color: var(--muted);
       }
       .badge {
         font-size: 11px;
-        padding: 3px 7px;
+        padding: 2px 5px;
+        border: 1px solid var(--line);
         border-radius: 4px;
-        background: #edf2f7;
+        background: var(--panel-2);
       }
       .pager {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-        padding: 16px 24px;
+        padding: 6px 12px;
         flex-wrap: wrap;
       }
       .pager div {
@@ -338,19 +371,19 @@
         align-items: center;
       }
       .empty {
-        padding: 40px 24px;
+        padding: 24px 12px;
         text-align: center;
       }
       .empty strong {
-        font-size: 20px;
+        font-size: 15px;
         display: block;
       }
       .notice {
-        padding: 12px 24px;
+        padding: 6px 12px;
         color: var(--muted);
-        background: #f8fafc;
+        background: var(--panel-2);
         border-top: 1px solid var(--line);
-        font-size: 12px;
+        font-size: 11px;
       }
       #loading {
         padding: 50px 24px;
@@ -361,14 +394,15 @@
       }
       dialog {
         border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 28px;
+        border-radius: 8px;
+        padding: 20px;
         max-width: min(420px,calc(100% - 32px));
         color: var(--ink);
-        box-shadow: 0 18px 60px #172b4633;
+        background: var(--panel);
+        box-shadow: var(--shadow);
       }
       dialog::backdrop {
-        background: #172b4688;
+        background: var(--overlay);
       }
       dialog h2 {
         margin-bottom: 12px;
@@ -384,61 +418,75 @@
         display: none!important;
       }
       footer {
-        margin-top: 24px;
+        margin-top: 10px;
         color: var(--muted);
-        font-size: 12px;
+        font-size: 11px;
       }
       @media(max-width:900px) {
         .rankings {
           grid-template-columns: repeat(2,minmax(0,1fr));
         }
-        .metric {
-          font-size: 26px;
-        }
+      }
+      @media(max-width:1100px) {
+        .overview { grid-template-columns: 1fr; gap: 0; }
       }
       @media(max-width:600px) {
         header {
-          padding: 16px;
+          padding: 8px 12px;
+          min-height: 52px;
         }
-        header span {
+        header > span {
           font-size: 12px;
         }
         main {
-          padding: 24px 12px;
+          padding: 8px;
         }
         h1 {
-          font-size: 25px;
+          font-size: 14px;
         }
         .summary {
-          grid-template-columns: 1fr;
+          grid-template-columns: 1fr 1fr;
         }
         .summary article {
-          padding: 18px;
+          padding: 8px 10px;
         }
-        .summary article+article {
-          border-left: 0;
+        .summary article:last-child {
+          grid-column: 1 / -1;
           border-top: 1px solid var(--line);
+          border-left: 0;
         }
         .metric {
-          font-size: 29px;
+          font-size: 18px;
         }
         .rankings {
-          grid-template-columns: 1fr;
-          padding: 18px;
-          gap: 20px;
+          grid-template-columns: repeat(2,minmax(0,1fr));
+          padding: 8px 10px;
+          gap: 12px;
         }
         .section-head,.tools,.crumbs,.pager {
-          padding-left: 16px;
-          padding-right: 16px;
+          padding-left: 10px;
+          padding-right: 10px;
         }
-        .tools>* {
+        .tools > .search {
+          flex-basis: 100%;
+        }
+        .tools > div:not(.search) {
+          flex: 1;
+          min-width: 0;
+        }
+        .tools select {
           width: 100%;
+          max-width: 100%;
+        }
+        .tools > button {
+          align-self: end;
         }
         .gross {
-          padding: 16px 18px;
+          padding: 6px 10px;
+          gap: 8px 14px;
         }
         .source {
-          margin-top: 8px;
+          margin-top: 4px;
         }
         td:first-child {
           max-width: 280px;
@@ -458,6 +506,20 @@
       th[aria-sort="descending"] button::after {
         border-top: 5px solid currentColor;
       }
+      th[aria-sort="ascending"] button, th[aria-sort="descending"] button {
+        color: var(--accent);
+      }
+      header .theme-toggle {
+        margin: 0 0 0 auto;
+        flex: 0 0 auto;
+      }
+      .theme-switch { position: relative; }
+      .theme-icon { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      @media (prefers-reduced-motion: reduce) {
+        .theme-switcher-v2, .theme-switcher-v2::before, .theme-switcher-v2 .theme-icon { transition: none; }
+      }
+      .search-results td:first-child span.path { display: block; }
+      .rankings section { min-width: 0; }
     </style>
   </head>
   <body>
@@ -468,6 +530,7 @@
       <span>
         Snapshot comparison
       </span>
+      <!-- DIFF_THEME_SWITCH -->
     </header>
     <main>
       <h1>
@@ -483,6 +546,7 @@
         Try opening again
       </button>
       <div id="report" hidden>
+        <div class="overview">
         <section class="panel" aria-label="Comparison summary">
           <div class="summary">
             <article>
@@ -549,6 +613,7 @@
             Gross totals count each file and each directory’s own allocation once. Directory rankings overlap and should not be added together.
           </div>
         </section>
+        </div>
         <section class="panel" aria-labelledby="explorerTitle">
           <div class="section-head">
             <h2 id="explorerTitle">
@@ -678,6 +743,24 @@
 
       /* DIFF_RUNTIME */
       const $ = id => document.getElementById(id);
+      const THEME_STORAGE_KEY = 'webdiskstat-theme';
+      function applyTheme(theme, persist = false) {
+        const normalized = theme === 'light' ? 'light' : 'dark';
+        document.documentElement.dataset.theme = normalized;
+        const toggle = $('themeToggle');
+        toggle.checked = normalized === 'light';
+        toggle.setAttribute('aria-checked', String(toggle.checked));
+        const label = 'Switch to ' + (toggle.checked ? 'dark' : 'light') + ' theme';
+        toggle.setAttribute('aria-label', label);
+        toggle.closest('.theme-toggle').title = label;
+        if (persist) {
+          try { localStorage.setItem(THEME_STORAGE_KEY, normalized); } catch (_) {
+            // Changing this report's theme still works with storage blocked.
+          }
+        }
+      }
+      applyTheme(document.documentElement.dataset.theme);
+      $('themeToggle').addEventListener('change', event => applyTheme(event.target.checked ? 'light' : 'dark', true));
       function requestReportPassword(message) {
         return new Promise((resolve, reject) => {
           const dialog = $('passwordDialog');
@@ -859,8 +942,9 @@
           const top = largest[type][growth ? 'growing' : 'shrinking'];
           for (const n of top) {
             const li = el('li');
-            const b = button(n.path || n.name, () => openNode(n));
-            b.title = n.path;
+              const b = button(n.name || n.path, () => openNode(n));
+              b.title = n.path;
+              b.setAttribute('aria-label', n.path || n.name);
             li.append(b, el('small', bytes(n.delta, true), growth ? 'up' : 'down'));
             list.append(li);
           }
@@ -873,6 +957,7 @@
         const q = $('search').value.trim().toLocaleLowerCase(),
           status = $('status').value;
         const global = !!q || status !== 'all';
+        $('rows').classList.toggle('search-results', global);
         visible = (global ? changed : current.children || []).filter(n => (!q || (n.path || n.name).toLocaleLowerCase().includes(q)) && (status === 'all' || n.status === status));
         visible.sort((a, b) => {
           let av = sortKey === 'percent' ? a.before ? a.delta / a.before : a.after ? Infinity : 0 : a[sortKey],

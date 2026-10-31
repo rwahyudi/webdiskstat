@@ -98,6 +98,8 @@ Comparison accepts GDU JSON exports and `.gz` exports only. Both scan roots must
 
 The offline comparison report includes before/after totals, net and percentage changes, separate storage increases and decreases, largest changes, and a searchable, sortable changes-only directory browser with status filters and CSV export. Ancestor directories remain navigable even when their net change is zero. Optional `--password` encryption protects the embedded comparison data just as it does single-input reports.
 
+Comparison reports use the normal report's compact styling and dark/light theme switcher. Theme preferences are remembered when browser storage is available.
+
 This compares recorded usage and metadata, not file contents. Renames appear as a removal and an addition; unchanged file size and metadata do not prove identical contents. For meaningful results, capture both snapshots with consistent scanner settings and coverage.
 
 Comparison currently holds snapshots in memory. Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). It is not intended for 100-million-file scans; memory requirements can be substantial even below the limits.
