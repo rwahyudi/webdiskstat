@@ -2052,7 +2052,6 @@ function treemapItems(node, maxItems = DEFAULT_TREEMAP_TILE_CAP) {
     }
   });
   if (!visible.length && node.type !== "dir" && node.size > 0) return [node];
-  visible.sort((a, b) => b.size - a.size);
   if (hiddenSize > 0) {
     visible.push({
       id: "other-" + node.id,
@@ -2067,6 +2066,7 @@ function treemapItems(node, maxItems = DEFAULT_TREEMAP_TILE_CAP) {
       depth: (node.depth || 0) + 1
     });
   }
+  visible.sort((a, b) => b.size - a.size);
   return visible;
 }
 
@@ -2140,16 +2140,6 @@ function layoutTreemap(items, x, y, w, h) {
   function placeRow(rowItems, size) {
     const area = sizeArea(size);
     if (width >= height) {
-      const rowHeight = area / width;
-      let cx = offsetX;
-      rowItems.forEach(item => {
-        const itemWidth = sizeArea(item.size) / rowHeight;
-        rects.push({ node: item, x: cx, y: offsetY, w: itemWidth, h: rowHeight });
-        cx += itemWidth;
-      });
-      offsetY += rowHeight;
-      height -= rowHeight;
-    } else {
       const rowWidth = area / height;
       let cy = offsetY;
       rowItems.forEach(item => {
@@ -2159,6 +2149,16 @@ function layoutTreemap(items, x, y, w, h) {
       });
       offsetX += rowWidth;
       width -= rowWidth;
+    } else {
+      const rowHeight = area / width;
+      let cx = offsetX;
+      rowItems.forEach(item => {
+        const itemWidth = sizeArea(item.size) / rowHeight;
+        rects.push({ node: item, x: cx, y: offsetY, w: itemWidth, h: rowHeight });
+        cx += itemWidth;
+      });
+      offsetY += rowHeight;
+      height -= rowHeight;
     }
   }
 }

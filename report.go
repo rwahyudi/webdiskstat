@@ -3010,7 +3010,6 @@ func replaceMemoryRuntime(report string) string {
     }
   });
   if (!visible.length && node.type !== "dir" && node.size > 0) return [node];
-  visible.sort((a, b) => b.size - a.size);
   if (hiddenSize > 0) {
     visible.push({
       id: "other-" + node.id,
@@ -3025,6 +3024,7 @@ func replaceMemoryRuntime(report string) string {
       depth: (node.depth || 0) + 1
     });
   }
+  visible.sort((a, b) => b.size - a.size);
   return visible;
 }
 
