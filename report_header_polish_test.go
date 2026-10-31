@@ -15,3 +15,15 @@ func TestTreeHeaderSeparatorsHaveContentBreathingRoom(t *testing.T) {
 		t.Fatalf("generated report missing trailing space before tree column separators: %s", headerSpacing)
 	}
 }
+
+func TestTreeHeaderOmitsSelectedFolderOpenAction(t *testing.T) {
+	report, err := renderReport(&Node{Name: "root", Path: "/data/root", Type: "dir"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, removed := range []string{"tree-open-btn", "makeSelectedFolderButton", "syncSelectedFolderButton"} {
+		if strings.Contains(report, removed) {
+			t.Errorf("generated report still contains removed tree-header action %q", removed)
+		}
+	}
+}
