@@ -38,6 +38,10 @@ type DiffNode struct {
 	Delta       int64       `json:"delta"`
 	BeforeFiles int         `json:"beforeFiles"`
 	AfterFiles  int         `json:"afterFiles"`
+	BeforeItems int         `json:"beforeItems"`
+	AfterItems  int         `json:"afterItems"`
+	BeforeMTime string      `json:"beforeMtime,omitempty"`
+	AfterMTime  string      `json:"afterMtime,omitempty"`
 	Status      string      `json:"status"`
 	Children    []*DiffNode `json:"children,omitempty"`
 }
@@ -151,6 +155,12 @@ func buildDiffReport(before, after *Node, beforeSource, afterSource string) (*Di
 			decreased -= countedDelta
 		}
 		node = &DiffNode{Name: name, Path: p, Type: typ, BeforeType: bt, AfterType: at, Before: bv, After: av, Delta: delta, BeforeFiles: bf, AfterFiles: af, Status: status}
+		if bok {
+			node.BeforeItems, node.BeforeMTime = b.Items, b.MTime
+		}
+		if aok {
+			node.AfterItems, node.AfterMTime = a.Items, a.MTime
+		}
 		children := map[string]bool{}
 		if bok {
 			for _, c := range b.Children {

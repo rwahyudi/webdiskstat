@@ -90,10 +90,9 @@ func TestDiffReportCompressedJSONRoundTrip(t *testing.T) {
 			t.Errorf("artifact contains %q", forbidden)
 		}
 	}
-	if strings.Contains(html, ".innerHTML") {
-		t.Error("diff UI should only use safe DOM construction")
-	}
-	for _, required := range []string{"function pbkdf2Sha256(", "function chacha20Poly1305Decrypt(", "function bytesFromReportPayload(", "DecompressionStream", "aria-sort", "csvCell", "visible.slice(start, start + size)"} {
+	// The ordinary icon helper uses innerHTML only for its bundled, trusted SVG
+	// library. Snapshot names/paths still use textContent (also exercised below).
+	for _, required := range []string{"function pbkdf2Sha256(", "function chacha20Poly1305Decrypt(", "function bytesFromReportPayload(", "DecompressionStream", "aria-sort", "csvCell", "function renderVisibleTreeRows("} {
 		if !strings.Contains(html, required) {
 			t.Errorf("missing runtime feature %s", required)
 		}
@@ -160,93 +159,4 @@ func TestDiffReportBrowser(t *testing.T) {
 	t.Log(strings.TrimSpace(string(output)))
 }
 
-const diffReportBrowserCheck = `
-import sys, pathlib, glob, os, csv, io, json
-try:
- from playwright.sync_api import sync_playwright
-except ImportError:
- print('Playwright unavailable; browser verification skipped'); sys.exit(77)
-root=pathlib.Path(sys.argv[1])
-with sync_playwright() as p:
- candidates=[p.chromium.executable_path]+glob.glob(os.path.expanduser('~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome'))
- binary=next((x for x in candidates if os.path.isfile(x)),None)
- if not binary:
-  print('Chromium unavailable; browser verification skipped'); sys.exit(77)
- browser=p.chromium.launch(executable_path=binary,headless=True,args=['--no-sandbox'])
- page=browser.new_page(accept_downloads=True,viewport={'width':1440,'height':1100})
- errors=[]; requests=[]
- page.on('pageerror',lambda e:errors.append(str(e)))
- page.on('request',lambda r:requests.append(r.url) if r.url.startswith(('http://','https://')) else None)
- page.goto((root/'plain.html').as_uri());page.locator('#report').wait_for(state='visible')
- assert page.locator('#rows tr').count()==50
- assert page.locator('#netSize').inner_text()=='0 B'
- assert page.evaluate('window.diffXSS') is None
- assert page.locator('#beforeSource').inner_text().find('baseline-secret.json')>=0
- assert 'Captured:' in page.locator('#beforeSource').inner_text()
- assert '2026-10-31T00:00:00Z' not in page.locator('#beforeSource').inner_text()
- times=page.evaluate("[captureTime('1793404800'),captureTime('2026-10-31T00:00:00Z'),captureTime(''),captureTime('invalid'),captureTime(null),captureTime('99999999999999999')]")
- assert times[0]==times[1] and '2026' in times[0], times
- assert all(t=='Capture time unavailable' for t in times[2:]), times
- assert page.evaluate('typeof largestChanges')=='undefined'
- assert page.locator('[data-category="growingFiles"] tbody tr').count()==10
- page.locator('#next').click();assert page.locator('#pageLabel').inner_text()=='2 / 6'
- page.locator('#pageSize').select_option('200');assert page.locator('#rows tr').count()<=200
- page.locator('#search').fill('grow.bin');page.wait_for_timeout(250)
- assert page.locator('#rows tr').count()==1
- assert 'added' in page.locator('#rows').inner_text()
- page.locator('#search').fill('');page.locator('#status').select_option('removed');page.wait_for_timeout(250)
- assert page.locator('#rows tr').count()==1
- assert 'shrink.bin' in page.locator('#rows').inner_text()
- page.locator('#reset').click()
- page.get_by_role('button',name='Change',exact=True).click()
- page.get_by_role('button',name='Open directory /private-root/offset',exact=True).click()
- assert page.locator('#rows tr').count()==2
- assert 'grow.bin' in page.locator('#rows').inner_text()
- page.get_by_role('button',name='private-root',exact=True).click()
- page.locator('#search').fill('no-such-file');page.wait_for_timeout(250)
- assert page.locator('#empty').is_visible()
- assert 'No matching changes' in page.locator('#empty').inner_text()
- page.locator('#reset').click()
- with page.expect_download() as dl: page.locator('#csv').click()
- download=dl.value; text=pathlib.Path(download.path()).read_text(encoding='utf-8-sig'); rows=list(csv.DictReader(io.StringIO(text)))
- assert len(rows)==263, len(rows)
- assert all(r['status']!='unchanged' for r in rows)
- assert not any(r['path']=='/private-root/offset' for r in rows)
- safe=page.evaluate("['=SUM(A1)', '+cmd', '-cmd', '@cmd', '  =cmd', '\\tcmd', '\\rcmd', 'normal', 'a\\\"b'].map(csvCell)")
- assert all(x.startswith('"\'') for x in safe[:7]), safe
- assert safe[7]=='"normal"' and safe[8]=='"a""b"'
- # Export remains global even with a search active.
- page.locator('#search').fill('grow.bin');page.wait_for_timeout(250)
- with page.expect_download() as dl: page.locator('#csv').click()
- assert len(list(csv.DictReader(io.StringIO(pathlib.Path(dl.value.path()).read_text(encoding='utf-8-sig')))))==263
- page.locator('#reset').click()
- page.get_by_role('button',name='Name / path',exact=True).click()
- assert page.locator('#head th').first.get_attribute('aria-sort')=='ascending'
- page.locator('#search').focus();page.keyboard.press('Tab');assert page.locator('#status').evaluate('(e)=>e===document.activeElement')
- out=os.environ.get('DIFF_REPORT_SCREENSHOTS')
- if out:
-  pathlib.Path(out).mkdir(parents=True,exist_ok=True);page.screenshot(path=str(pathlib.Path(out)/'desktop.png'),full_page=True)
- page.set_viewport_size({'width':390,'height':844})
- assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
- if out: page.screenshot(path=str(pathlib.Path(out)/'mobile.png'),full_page=True)
- page.goto((root/'empty.html').as_uri());page.locator('#report').wait_for(state='visible')
- assert 'No changes found' in page.locator('#empty').inner_text()
- assert page.locator('#csv').is_disabled()
- # Verify actual encrypted artifact with wrong password then correct password.
- page.goto((root/'encrypted.html').as_uri());page.locator('#passwordDialog').wait_for(state='visible')
- page.locator('#password').fill('wrong');page.get_by_role('button',name='Unlock',exact=True).click()
- page.get_by_text('Incorrect password. Try again:',exact=True).wait_for()
- page.locator('#password').fill('browser-password');page.get_by_role('button',name='Unlock',exact=True).click()
- page.locator('#report').wait_for(state='visible',timeout=60000)
- assert 'baseline-secret.json' in page.locator('#beforeSource').inner_text()
- # Force the existing pure-JS KDF fallback as on restricted offline browsers.
- context=browser.new_context();context.add_init_script('Object.defineProperty(globalThis,"crypto",{value:undefined,configurable:true})')
- fallback=context.new_page();fallback.goto((root/'encrypted.html').as_uri());fallback.locator('#passwordDialog').wait_for(state='visible')
- fallback.locator('#password').fill('browser-password');fallback.get_by_role('button',name='Unlock',exact=True).click()
- fallback.locator('#report').wait_for(state='visible',timeout=120000)
- assert fallback.locator('#rows tr').count()==50
- assert not errors, errors
- assert not requests, requests
- browser.close()
- print('PASS: desktop/mobile, human-readable capture times, dedicated default-ten rankings, bounded rows, global search, filters, navigation, sorting, CSV safety/completeness, no-change, XSS, keyboard, encrypted unlock/retry, pure-JS crypto fallback, zero network requests')
-`
+const diffReportBrowserCheck = diffBrowserRegressionCheck

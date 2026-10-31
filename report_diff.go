@@ -100,5 +100,12 @@ func renderDiffReport(report *DiffReport, password *string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl, "/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", encoded, "DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate), nil
+	browserJS, browserCSS, err := diffBrowserSupport()
+	if err != nil {
+		return "", err
+	}
+	return strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl,
+		"/* NORMAL_BROWSER_CSS */", browserCSS,
+		"/* DIFF_BROWSER_RUNTIME */", strings.Replace(diffBrowserRuntime, "/* NORMAL_BROWSER_FUNCTIONS */", browserJS, 1),
+		"/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", encoded, "DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate), nil
 }

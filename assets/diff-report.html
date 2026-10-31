@@ -511,6 +511,55 @@
       }
       .search-results td:first-child span.path { display: block; }
       .rankings section { min-width: 0; }
+      /* Scope imported ordinary-report styling away from summaries and rankings. */
+      #diffBrowser button { min-height: 0; box-shadow: none; }
+      /* NORMAL_BROWSER_CSS */
+      #diffBrowser { min-width: 0; overflow: visible; }
+      #diffBrowser .section-head { border-radius: 4px 4px 0 0; }
+      #diffBrowser .browser-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      #diffBrowser .browser-actions label { margin: 0; }
+      #diffBrowser .browser-actions button, #diffBrowser .browser-actions select { min-height: 36px; }
+      #diffBrowser .browser-toolbar { display: grid; grid-template-columns: minmax(180px,1fr) minmax(220px,420px) auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--header); border-bottom: 1px solid var(--line); }
+      #diffBrowser .pathbar { min-height: 36px; }
+      #diffBrowser .browser-toolbar .pathbar { order: 0; }
+      #diffBrowser .browser-toolbar .search { order: 1; }
+      #diffBrowser .browser-toolbar > .icon-btn { order: 2; }
+      #diffBrowser .crumbs { border: 0; padding: 0; flex-wrap: nowrap; }
+      #diffBrowser .crumbs button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #diffBrowser .search { position: relative; min-width: 0; }
+      #diffBrowser .search-input { min-height: 36px; }
+      #diffBrowser .search-results { z-index: 70; max-height: min(460px,60vh); overflow: auto; }
+      #diffBrowser .search-result { width: 100%; }
+      #diffBrowser .tree { height: min(62vh,620px); min-height: 320px; overflow: auto; position: relative; scrollbar-color: var(--muted) var(--panel-2); font-size: 12px; }
+      #diffBrowser .tree-body { position: relative; }
+      #diffBrowser .tree-header { z-index: 6; }
+      #diffBrowser .tree-columns-menu { z-index: 10; max-height: 290px; overflow: auto; }
+      #diffBrowser .tree-column-option input { width: 14px; min-height: 14px; height: 14px; margin: 0; }
+      #diffBrowser .tree-column-option { color: var(--ink); }
+      #diffBrowser .row-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #diffBrowser .row-count.up { color: var(--up); }
+      #diffBrowser .row-count.down { color: var(--down); }
+      #diffBrowser .row::before { display: none; } /* Snapshot-share bars cannot represent signed changes. */
+      #diffBrowser .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+      #diffBrowser .browser-selection { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 7px 12px; border-bottom: 1px solid var(--line); min-width: 0; font-size: 12px; }
+      #diffBrowser .browser-selection span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+      #diffBrowser .browser-selection strong { white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
+      #diffBrowser .browser-range { padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+      #diffBrowser #browserHelp { width: min(640px,calc(100% - 32px)); max-height: 85vh; overflow: auto; padding: 0; }
+      #diffBrowser #browserHelp button { min-height: 36px; }
+      #diffBrowser .browser-help-keys { padding: 4px 16px; }
+      #diffBrowser .browser-help-keys dt { margin-top: 12px; font-weight: 700; }
+      #diffBrowser .browser-help-keys dd { margin: 4px 0; color: var(--muted); }
+      @media(max-width:700px) {
+        #diffBrowser .browser-toolbar { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px; }
+        #diffBrowser .pathbar { grid-column: 1 / -1; }
+        #diffBrowser .browser-actions { width: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) auto; }
+        #diffBrowser .browser-actions select { width: 100%; min-width: 0; }
+        #diffBrowser .browser-actions #csv { grid-column: 1 / -1; }
+        #diffBrowser .browser-selection { flex-wrap: wrap; gap: 4px; }
+        #diffBrowser .browser-selection span { flex-basis: 100%; }
+        #diffBrowser .tree { height: 55vh; min-height: 320px; }
+      }
     </style>
   </head>
   <body>
@@ -604,100 +653,55 @@
             <p id="rankingMessage" role="status" aria-live="polite" hidden></p>
           </div>
         </section>
-        <section class="panel" aria-labelledby="explorerTitle">
+        <section id="diffBrowser" class="panel" aria-labelledby="explorerTitle">
           <div class="section-head">
-            <h2 id="explorerTitle">
-              Explore changes
-            </h2>
-            <button id="csv">
-              Export all changes · CSV
-            </button>
-          </div>
-          <div class="tools">
-            <div class="search">
-              <label for="search">
-                Search all changed paths
-              </label>
-              <input id="search" type="search" placeholder="Find a file or directory…" autocomplete="off">
-            </div>
-            <div>
-              <label for="status">
-                Status
-              </label>
+            <h2 id="explorerTitle">Explore changes</h2>
+            <div class="browser-actions">
+              <label for="status">Status</label>
               <select id="status">
-                <option value="all">
-                  All statuses
-                </option>
-                <option value="added">
-                  Added
-                </option>
-                <option value="removed">
-                  Removed
-                </option>
-                <option value="grown">
-                  Grown
-                </option>
-                <option value="shrunk">
-                  Shrunk
-                </option>
-                <option value="changed">
-                  Changed metadata / type
-                </option>
+                <option value="all">All statuses</option><option value="added">Added</option>
+                <option value="removed">Removed</option><option value="grown">Grown</option>
+                <option value="shrunk">Shrunk</option><option value="changed">Changed metadata / type</option>
               </select>
+              <button id="reset" type="button">Reset view</button>
+              <button id="csv" type="button">Export all changes · CSV</button>
             </div>
-            <div>
-              <label for="pageSize">
-                Rows per page
-              </label>
-              <select id="pageSize">
-                <option>
-                  50
-                </option>
-                <option>
-                  100
-                </option>
-                <option>
-                  200
-                </option>
-              </select>
+          </div>
+          <div class="browser-toolbar">
+            <div class="pathbar">
+              <nav id="crumbs" class="crumbs" aria-label="Path"></nav>
+              <span id="currentLocation" class="current-location"></span>
+              <button id="copyPathButton" class="copy-path-btn" type="button" aria-label="Copy current path" hidden>
+                <svg class="copy-path-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              <span id="copyMessage" role="status" class="copy-path-message"></span>
             </div>
-            <button id="reset">
-              Reset view
+            <div class="search" role="search">
+              <button id="searchShortcut" class="search-shortcut" type="button" aria-label="Focus search">/</button>
+              <input id="search" class="search-input" type="search" placeholder="Search changed files and folders…" aria-label="Search changed files and folders" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="searchResults">
+              <div id="searchResults" class="search-results" role="listbox" aria-label="Search results" hidden></div>
+            </div>
+            <button id="browserHelpButton" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 4.2M12 17h.01"/></svg>
             </button>
           </div>
-          <nav id="crumbs" class="crumbs" aria-label="Directory path">
-          </nav>
-          <div class="scroll" tabindex="0" role="region" aria-label="Changes table, scroll horizontally for all columns">
-            <table>
-              <caption id="tableCaption">
-              </caption>
-              <thead>
-                <tr id="head">
-                </tr>
-              </thead>
-              <tbody id="rows">
-              </tbody>
-            </table>
-          </div>
-          <div id="empty" class="empty" hidden>
-          </div>
-          <div class="pager">
-            <span id="range" role="status" aria-live="polite">
-            </span>
-            <div>
-              <button id="previous">
-                Previous
-              </button>
-              <span id="pageLabel">
-              </span>
-              <button id="next">
-                Next
-              </button>
-            </div>
-          </div>
-          <div class="notice">
-            Open a directory to see its changed children. Unchanged ancestors are retained for navigation, even when increases and decreases cancel out. Search and status filters look across the entire snapshot.
-          </div>
+          <div id="selectionInfo" class="browser-selection" aria-live="polite"></div>
+          <div id="tree" class="tree" role="region" tabindex="0" aria-label="File and folder table. Focus this region and use left or right arrow to scroll horizontally and see all columns."></div>
+          <div id="range" class="browser-range" role="status" aria-live="polite"></div>
+          <div class="notice">Double-click a directory to open it. Unchanged ancestors remain for navigation, including net-zero directories. Search suggests changed paths; status filters retain their ancestors. CSV always includes all actual changes.</div>
+          <dialog id="browserHelp" aria-labelledby="browserHelpTitle">
+            <div class="section-head"><h2 id="browserHelpTitle">Keyboard shortcuts</h2><button id="browserHelpClose" type="button" aria-label="Close help">Close</button></div>
+            <dl class="browser-help-keys">
+              <dt>↑ / ↓ · Page Up / Page Down · Home / End</dt><dd>Move selection</dd>
+              <dt>Enter / → · Double-click · Space on a row</dt><dd>Open selected directory</dd>
+              <dt>← / Backspace</dt><dd>Go up one directory</dd>
+              <dt>/ · Ctrl / ⌘ F</dt><dd>Focus search; arrows choose a suggestion, Enter opens it</dd>
+              <dt>n · s · C · m / M</dt><dd>Sort by name, after size, after file count, after modified time</dd>
+              <dt>Escape · ?</dt><dd>Close search, column settings, or help · Open help</dd>
+              <dt>← / → on a column separator</dt><dd>Resize by 12 pixels; widths and visible columns are saved</dd>
+            </dl>
+            <p class="notice">Sizes and file-count shortcuts use the after snapshot. Percent columns show change, not snapshot share. Metadata comparison does not read file contents; renames appear as removal and addition.</p>
+          </dialog>
         </section>
       </div>
       <footer>
@@ -727,6 +731,9 @@
     </dialog>
     <script id="diffData" type="application/json">
       /* DIFF_PAYLOAD */
+    </script>
+    <script>
+      /* DIFF_BROWSER_RUNTIME */
     </script>
     <script>
       "use strict";
@@ -777,11 +784,7 @@
         current,
         changed = [],
         parents = new WeakMap(),
-        page = 0,
-        sortKey = 'delta',
-        sortDirection = -1,
         visible = [];
-      const columns = [['name', 'Name / path'], ['before', 'Before'], ['after', 'After'], ['delta', 'Change'], ['percent', '% change'], ['beforeFiles', 'Files before'], ['afterFiles', 'Files after'], ['status', 'Status']];
       function bytes(value, signed = false) {
         const sign = value < 0 ? '−' : signed && value > 0 ? '+' : '';
         let n = Math.abs(value),
@@ -851,16 +854,15 @@
         return svg;
       }
       function navigate(n) {
-        current = n;
-        $('search').value = '';
-        $('status').value = 'all';
-        page = 0;
-        refresh();
-        $('explorerTitle').tabIndex = -1;
-        $('explorerTitle').focus();
+        DiffBrowser.navigate(n);
       }
       function openNode(n) {
+        if ($('status').value !== 'all') {
+          $('status').value = 'all';
+          $('status').dispatchEvent(new Event('change'));
+        }
         navigate(n.type === 'dir' ? n : parents.get(n) || data.root);
+        if (n.type !== 'dir') DiffBrowser.select(n);
       }
       function indexReport() {
         changed = [];
@@ -969,73 +971,7 @@
         }
       }
       function refresh() {
-        const q = $('search').value.trim().toLocaleLowerCase(),
-          status = $('status').value;
-        const global = !!q || status !== 'all';
-        $('rows').classList.toggle('search-results', global);
-        visible = (global ? changed : current.children || []).filter(n => (!q || (n.path || n.name).toLocaleLowerCase().includes(q)) && (status === 'all' || n.status === status));
-        visible.sort((a, b) => {
-          let av = sortKey === 'percent' ? a.before ? a.delta / a.before : a.after ? Infinity : 0 : a[sortKey],
-            bv = sortKey === 'percent' ? b.before ? b.delta / b.before : b.after ? Infinity : 0 : b[sortKey];
-          return sortDirection * (typeof av === 'number' ? av === bv ? 0 : av > bv ? 1 : -1 : String(av || '').localeCompare(String(bv || ''))) || (a.path || a.name).localeCompare(b.path || b.name);
-        });
-        const crumbs = $('crumbs');
-        crumbs.replaceChildren();
-        if (global) crumbs.append(button('Back to directory', () => navigate(current)), el('span', 'All changed paths'));else {
-          const chain = [];
-          let n = current;
-          while (n) {
-            chain.push(n);
-            n = parents.get(n);
-          }
-          for (const item of chain.reverse()) crumbs.append(button(item.name || item.path || 'Root', () => navigate(item)));
-        }
-        $('tableCaption').textContent = global ? 'Global results · unchanged ancestors excluded' : 'Changed children of ' + (current.path || current.name);
-        renderPage();
-      }
-      function renderPage() {
-        const size = Number($('pageSize').value),
-          pages = Math.max(1, Math.ceil(visible.length / size));
-        page = Math.min(page, pages - 1);
-        const start = page * size,
-          rows = $('rows');
-        rows.replaceChildren();
-        for (const n of visible.slice(start, start + size)) {
-          const row = el('tr');
-          const name = el('td');
-          const entry = el('div', undefined, 'entry');
-          entry.append(icon(n.type === 'dir'));
-          const box = el('div');
-          if (n.type === 'dir') {
-            const b = button(n.name || n.path || 'Root', () => navigate(n));
-            b.setAttribute('aria-label', 'Open directory ' + (n.path || n.name));
-            box.append(b);
-          } else box.append(el('span', n.name));
-          box.append(el('span', n.path, 'path'));
-          entry.append(box);
-          name.append(entry);
-          row.append(name);
-          for (const key of ['before', 'after', 'delta', 'percent', 'beforeFiles', 'afterFiles', 'status']) {
-            const td = el('td');
-            td.textContent = key === 'percent' ? percentage(n) : key === 'status' ? n.status === 'unchanged' ? 'Context' : n.status : key.includes('Files') ? (n[key] || 0).toLocaleString() : bytes(n[key], key === 'delta');
-            if (key === 'delta') tint(td, n.delta);
-            if (key === 'status') {
-              td.textContent = '';
-              const badge = el('span', n.status === 'unchanged' ? 'Context' : n.status, 'badge');
-              badge.title = n.beforeType && n.afterType && n.beforeType !== n.afterType ? n.beforeType + ' → ' + n.afterType : n.status;
-              td.append(badge);
-            }
-            row.append(td);
-          }
-          rows.append(row);
-        }
-        $('empty').hidden = !!visible.length;
-        $('empty').replaceChildren(el('strong', changed.length ? 'No matching changes' : 'No changes found'), el('span', changed.length ? 'Try another search, clear the status filter, or open a different directory.' : 'The snapshots have identical compared metadata.'));
-        $('range').textContent = visible.length ? (start + 1).toLocaleString() + '–' + Math.min(start + size, visible.length).toLocaleString() + ' of ' + visible.length.toLocaleString() + ' paths' : '0 paths';
-        $('pageLabel').textContent = page + 1 + ' / ' + pages;
-        $('previous').disabled = page === 0;
-        $('next').disabled = page >= pages - 1;
-        for (const th of $('head').children) th.setAttribute('aria-sort', th.dataset.key === sortKey ? sortDirection === 1 ? 'ascending' : 'descending' : 'none');
+        DiffBrowser.refresh();
       }
       function csvCell(value) {
         let text = String(value ?? '');
@@ -1043,7 +979,7 @@
         return '"' + text.replace(/"/g, '""') + '"';
       }
       function exportCSV() {
-        const fields = ['path', 'type', 'beforeType', 'afterType', 'before', 'after', 'delta', 'percent', 'beforeFiles', 'afterFiles', 'status'];
+        const fields = ['path', 'type', 'beforeType', 'afterType', 'before', 'after', 'delta', 'percent', 'beforeFiles', 'afterFiles', 'beforeItems', 'afterItems', 'beforeMtime', 'afterMtime', 'status'];
         const lines = [fields.join(',')];
         for (const n of changed) lines.push(fields.map(k => csvCell(k === 'percent' ? n.before === 0 ? '' : n.delta / n.before * 100 : n[k])).join(','));
         const url = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\r\n')], {
@@ -1057,45 +993,6 @@
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
-      for (const [key, label] of columns) {
-        const th = el('th');
-        th.scope = 'col';
-        th.dataset.key = key;
-        th.append(button(label, () => {
-          if (sortKey === key) sortDirection *= -1;else {
-            sortKey = key;
-            sortDirection = key === 'name' || key === 'status' ? 1 : -1;
-          }
-          page = 0;
-          refresh();
-        }));
-        $('head').append(th);
-      }
-      let searchTimer;
-      $('search').oninput = () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
-          page = 0;
-          refresh();
-        }, 160);
-      };
-      $('status').onchange = () => {
-        page = 0;
-        refresh();
-      };
-      $('pageSize').onchange = () => {
-        page = 0;
-        renderPage();
-      };
-      $('reset').onclick = () => navigate(data.root);
-      $('previous').onclick = () => {
-        page--;
-        renderPage();
-      };
-      $('next').onclick = () => {
-        page++;
-        renderPage();
-      };
       $('csv').onclick = exportCSV;
       $('rankLimit').addEventListener('change', rankings);
       async function boot() {
@@ -1113,7 +1010,7 @@
           current = data.root;
           summary();
           rankings();
-          refresh();
+          DiffBrowser.initialize(data.root);
           $('loading').hidden = true;
           $('report').hidden = false;
         } catch (error) {

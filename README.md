@@ -100,6 +100,8 @@ The offline comparison report includes before/after totals, net and percentage c
 
 Comparison reports use the normal report's compact styling and dark/light theme switcher. Theme preferences are remembered when browser storage is available.
 
+The comparison file browser uses the normal report's selection and directory-navigation controls, keyboard shortcuts, sortable/resizable optional columns, path copying, bookmarkable navigation, and virtualized scrolling. Size and file-count shortcuts sort by **After size** and **After file count**; comparison-specific columns remain independently sortable.
+
 The summary and largest-changes sections each span the report width. Largest changes displays 10 entries per category by default, selectable up to 100. Its rankings use one dedicated embedded dataset, independent of file-browser search, filters, sorting, and pagination. Both datasets remain inside the self-contained report and are encrypted together when `--password` is used.
 
 This compares recorded usage and metadata, not file contents. Renames appear as a removal and an addition; unchanged file size and metadata do not prove identical contents. For meaningful results, capture both snapshots with consistent scanner settings and coverage.
