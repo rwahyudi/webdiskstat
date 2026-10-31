@@ -320,7 +320,7 @@ func TestReportAddsInlinePathCopyButtons(t *testing.T) {
 		`background:color-mix(in srgb,var(--accent-2) 14%,transparent)`,
 		`.copy-path-message::before{content:"\2713"`,
 		`renderPathWithCopy(el.detailPath, node.path || node.name, "Copy detail path");`,
-		`path.append(pathText, makeCopyPathButton(filePath, "Copy file path"));`,
+		`pathLine.append(pathText, makeCopyPathButton(filePath, "Copy file path"));`,
 		`.inline-copy-path-icon`,
 		`html[data-theme="light"] .copy-path-icon,html[data-theme="light"] .inline-copy-path-icon{filter:none}`,
 	} {
