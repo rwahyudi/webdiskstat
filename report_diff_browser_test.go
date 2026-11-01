@@ -321,6 +321,15 @@ for theme in ['dark','light']:
   assert diff.locator('#browserHelpButton').evaluate('(e)=>e.closest("header")!==null')
   header=diff.locator('header').bounding_box();help_box=diff.locator('#browserHelpButton').bounding_box()
   assert abs(help_box['y']+help_box['height']/2-(header['y']+header['height']/2))<3
+  diff.locator('#browserHelpButton').click()
+  help_dialog=diff.locator('#browserHelp');assert help_dialog.is_visible()
+  columns=help_dialog.locator('.browser-help-grid').evaluate('(e)=>getComputedStyle(e).gridTemplateColumns.split(" ").length')
+  assert columns==(3 if device=='desktop' else 1),columns
+  assert help_dialog.bounding_box()['width']>800 if device=='desktop' else help_dialog.bounding_box()['width']>=350
+  assert help_dialog.evaluate('(e)=>getComputedStyle(e).scrollbarWidth')=='none'
+  assert help_dialog.evaluate('(e)=>e.scrollHeight<=e.clientHeight')
+  if out:diff.screenshot(path=str(pathlib.Path(out)/('help-'+device+'-'+theme+'.png')))
+  diff.keyboard.press('Escape');assert help_dialog.is_hidden()
   assert diff.locator('#tree .row[data-id]').count()<80
   assert diff.locator('#status').evaluate('(e)=>e.closest(".browser-toolbar")!==null')
   if device=='desktop':

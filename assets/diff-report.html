@@ -681,11 +681,17 @@
       #diffBrowser .browser-selection span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
       #diffBrowser .browser-selection strong { white-space: nowrap; font-size: 12px; font-variant-numeric: tabular-nums; }
       #diffBrowser .browser-range { padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-      #diffBrowser #browserHelp { width: min(640px,calc(100% - 32px)); max-height: 85vh; overflow: auto; padding: 0; }
+      #diffBrowser #browserHelp { width: min(960px,calc(100vw - 32px)); max-width: min(960px,calc(100vw - 32px)); max-height: min(85vh,680px); overflow-y: auto; scrollbar-width: none; padding: 0; }
+      #diffBrowser #browserHelp::-webkit-scrollbar { display: none; }
       #diffBrowser #browserHelp button { min-height: 36px; }
-      #diffBrowser .browser-help-keys { padding: 4px 16px; }
-      #diffBrowser .browser-help-keys dt { margin-top: 12px; font-weight: 700; }
+      #diffBrowser .browser-help-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 20px; padding: 12px 18px; }
+      #diffBrowser .browser-help-group { min-width: 0; }
+      #diffBrowser .browser-help-group h3 { margin: 0 0 8px; color: var(--ink); font-size: 12px; }
+      #diffBrowser .browser-help-keys { margin: 0; padding: 0; }
+      #diffBrowser .browser-help-keys dt { margin-top: 10px; font-weight: 700; line-height: 1.35; }
+      #diffBrowser .browser-help-keys dt:first-child { margin-top: 0; }
       #diffBrowser .browser-help-keys dd { margin: 4px 0; color: var(--muted); }
+      #diffBrowser .browser-help-note { max-width: none; margin: 0; padding: 10px 16px; border-top: 1px solid var(--line); }
       @media(max-width:700px) {
         #diffBrowser .browser-toolbar { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px; }
         #diffBrowser .pathbar { grid-column: 1 / -1; }
@@ -695,6 +701,13 @@
         #diffBrowser .browser-selection { flex-wrap: wrap; gap: 4px; }
         #diffBrowser .browser-selection span { flex-basis: 100%; }
         #diffBrowser .tree { height: 55vh; min-height: 320px; }
+      }
+      @media(max-width:800px) {
+        #diffBrowser .browser-help-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+      }
+      @media(max-width:520px) {
+        #diffBrowser #browserHelp { max-height: calc(100dvh - 24px); }
+        #diffBrowser .browser-help-grid { grid-template-columns: minmax(0,1fr); gap: 14px; padding: 12px 16px; }
       }
     </style>
   </head>
@@ -805,16 +818,31 @@
           <div class="notice">Double-click a directory to open it. Unchanged ancestors remain for navigation, including net-zero directories. Search suggests changed paths; status filters retain their ancestors. CSV always includes all actual changes.</div>
           <dialog id="browserHelp" aria-labelledby="browserHelpTitle">
             <div class="section-head"><h2 id="browserHelpTitle">Keyboard shortcuts</h2><button id="browserHelpClose" type="button" aria-label="Close help">Close</button></div>
-            <dl class="browser-help-keys">
-              <dt>↑ / ↓ · Page Up / Page Down · Home / End</dt><dd>Move selection</dd>
-              <dt>Enter / → · Double-click · Space on a row</dt><dd>Open selected directory</dd>
-              <dt>← / Backspace</dt><dd>Go up one directory</dd>
-              <dt>/ · Ctrl / ⌘ F</dt><dd>Focus search; arrows choose a suggestion, Enter opens it</dd>
-              <dt>n · s · C · m / M</dt><dd>Sort by name, after size, after file count, after modified time</dd>
-              <dt>Escape · ?</dt><dd>Close search, column settings, or help · Open help</dd>
-              <dt>← / → on a column separator</dt><dd>Resize by 12 pixels; widths and visible columns are saved</dd>
-            </dl>
-            <p class="notice">Sizes and file-count shortcuts use the after snapshot. Percent columns show change, not snapshot share. Metadata comparison does not read file contents; renames appear as removal and addition.</p>
+            <div class="browser-help-grid">
+              <section class="browser-help-group" aria-labelledby="browserHelpNavigation">
+                <h3 id="browserHelpNavigation">Navigate</h3>
+                <dl class="browser-help-keys">
+                  <dt>↑ / ↓ · Page Up / Page Down · Home / End</dt><dd>Move selection</dd>
+                  <dt>Enter / → · Double-click · Space on a row</dt><dd>Open selected directory</dd>
+                  <dt>← / Backspace</dt><dd>Go up one directory</dd>
+                </dl>
+              </section>
+              <section class="browser-help-group" aria-labelledby="browserHelpFindSort">
+                <h3 id="browserHelpFindSort">Find &amp; sort</h3>
+                <dl class="browser-help-keys">
+                  <dt>/ · Ctrl / ⌘ F</dt><dd>Focus search; arrows choose a suggestion, Enter opens it</dd>
+                  <dt>n · s · C · m / M</dt><dd>Sort by name, after size, after file count, after modified time</dd>
+                  <dt>Escape · ?</dt><dd>Close search, column settings, or help · Open help</dd>
+                </dl>
+              </section>
+              <section class="browser-help-group" aria-labelledby="browserHelpTable">
+                <h3 id="browserHelpTable">Table &amp; data</h3>
+                <dl class="browser-help-keys">
+                  <dt>← / → on a column separator</dt><dd>Resize by 12 pixels; widths and visible columns are saved</dd>
+                </dl>
+              </section>
+            </div>
+            <p class="notice browser-help-note">Sizes and file-count shortcuts use the after snapshot. Percent columns show change, not snapshot share. Metadata comparison does not read file contents; renames appear as removal and addition.</p>
           </dialog>
         </section>
         <section id="rankingsSection" class="panel" aria-labelledby="largestTitle">
