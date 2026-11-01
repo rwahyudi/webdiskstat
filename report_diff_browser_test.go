@@ -231,6 +231,10 @@ for theme in ['dark','light']:
   diff.set_viewport_size(size);diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
   assert diff.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
   assert diff.locator('#tree .row[data-id]').count()<80
+  assert diff.locator('#status').evaluate('(e)=>e.closest(".browser-toolbar")!==null')
+  if device=='desktop':
+   search_y=diff.locator('#search').bounding_box()['y']
+   assert all(abs(diff.locator(selector).bounding_box()['y']-search_y)<3 for selector in ['#status','#reset','#csv'])
   if device=='mobile':
    assert diff.locator('#status').bounding_box()['width']>=120
    assert abs(diff.locator('#browserHelpButton').bounding_box()['y']-diff.locator('#search').bounding_box()['y'])<3
@@ -281,7 +285,9 @@ assert len(list(csv.DictReader(io.StringIO(pathlib.Path(dl.value.path()).read_te
 page.locator('#reset').click();page.locator('.tree-header-cell[data-column="name"] .tree-sort').click()
 assert page.locator('.tree-header-cell[data-column="name"]').get_attribute('aria-sort')=='ascending'
 assert '</script>' in page.locator('#tree').inner_text() and page.evaluate('window.diffXSS') is None
-page.locator('#search').focus();page.keyboard.press('Tab');assert page.locator('#browserHelpButton').evaluate('(e)=>document.activeElement===e')
+page.locator('#search').focus();page.keyboard.press('Tab');assert page.locator('#status').evaluate('(e)=>document.activeElement===e')
+for selector in ['#reset','#csv','#browserHelpButton']:
+ page.keyboard.press('Tab');assert page.locator(selector).evaluate('(e)=>document.activeElement===e')
 page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
 load(page,'empty');assert 'No changes found' in page.locator('#empty').inner_text();assert page.locator('#csv').is_disabled()
 page.goto((root/'encrypted.html').as_uri());page.locator('#passwordDialog').wait_for(state='visible')

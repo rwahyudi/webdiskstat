@@ -519,11 +519,12 @@
       #diffBrowser .browser-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
       #diffBrowser .browser-actions label { margin: 0; }
       #diffBrowser .browser-actions button, #diffBrowser .browser-actions select { min-height: 36px; }
-      #diffBrowser .browser-toolbar { display: grid; grid-template-columns: minmax(180px,1fr) minmax(220px,420px) auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--header); border-bottom: 1px solid var(--line); }
+      #diffBrowser .browser-toolbar { display: grid; grid-template-columns: minmax(140px,1fr) minmax(200px,360px) auto auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--header); border-bottom: 1px solid var(--line); }
       #diffBrowser .pathbar { min-height: 36px; }
       #diffBrowser .browser-toolbar .pathbar { order: 0; }
       #diffBrowser .browser-toolbar .search { order: 1; }
-      #diffBrowser .browser-toolbar > .icon-btn { order: 2; }
+      #diffBrowser .browser-toolbar .browser-actions { order: 2; }
+      #diffBrowser .browser-toolbar > .icon-btn { order: 3; }
       #diffBrowser .crumbs { border: 0; padding: 0; flex-wrap: nowrap; }
       #diffBrowser .crumbs button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #diffBrowser .search { position: relative; min-width: 0; }
@@ -553,7 +554,8 @@
       @media(max-width:700px) {
         #diffBrowser .browser-toolbar { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px; }
         #diffBrowser .pathbar { grid-column: 1 / -1; }
-        #diffBrowser .browser-actions { width: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) auto; }
+        #diffBrowser .browser-actions { grid-column: 1 / -1; width: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) auto; }
+        #diffBrowser .browser-toolbar > .icon-btn { grid-column: 2; grid-row: 2; }
         #diffBrowser .browser-actions select { width: 100%; min-width: 0; }
         #diffBrowser .browser-actions #csv { grid-column: 1 / -1; }
         #diffBrowser .browser-selection { flex-wrap: wrap; gap: 4px; }
@@ -634,16 +636,6 @@
         <section id="diffBrowser" class="panel" aria-labelledby="explorerTitle">
           <div class="section-head">
             <h2 id="explorerTitle">Explore changes</h2>
-            <div class="browser-actions">
-              <label for="status">Status</label>
-              <select id="status">
-                <option value="all">All statuses</option><option value="added">Added</option>
-                <option value="removed">Removed</option><option value="grown">Grown</option>
-                <option value="shrunk">Shrunk</option><option value="changed">Changed metadata / type</option>
-              </select>
-              <button id="reset" type="button">Reset view</button>
-              <button id="csv" type="button">Export all changes · CSV</button>
-            </div>
           </div>
           <div class="browser-toolbar">
             <div class="pathbar">
@@ -658,6 +650,16 @@
               <button id="searchShortcut" class="search-shortcut" type="button" aria-label="Focus search">/</button>
               <input id="search" class="search-input" type="search" placeholder="Search changed files and folders…" aria-label="Search changed files and folders" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="searchResults">
               <div id="searchResults" class="search-results" role="listbox" aria-label="Search results" hidden></div>
+            </div>
+            <div class="browser-actions">
+              <label for="status">Status</label>
+              <select id="status">
+                <option value="all">All statuses</option><option value="added">Added</option>
+                <option value="removed">Removed</option><option value="grown">Grown</option>
+                <option value="shrunk">Shrunk</option><option value="changed">Changed metadata / type</option>
+              </select>
+              <button id="reset" type="button">Reset view</button>
+              <button id="csv" type="button">Export all changes · CSV</button>
             </div>
             <button id="browserHelpButton" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 4.2M12 17h.01"/></svg>
