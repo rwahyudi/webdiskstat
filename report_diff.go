@@ -104,8 +104,15 @@ func renderDiffReport(report *DiffReport, password *string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	footerContent := diffReportFooterContent(password != nil)
 	return strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl,
 		"/* NORMAL_BROWSER_CSS */", browserCSS,
 		"/* DIFF_BROWSER_RUNTIME */", strings.Replace(diffBrowserRuntime, "/* NORMAL_BROWSER_FUNCTIONS */", browserJS, 1),
-		"/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", encoded, "DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate), nil
+		"/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", encoded, "<!-- DIFF_FOOTER_CONTENT -->", footerContent,
+		"DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate), nil
+}
+
+func diffReportFooterContent(encrypted bool) string {
+	projectLink := `<a class="footer-project" href="https://github.com/rwahyudi/webdiskstat" target="_blank" rel="noopener noreferrer" aria-label="webdiskstat version ` + escapeHTML(version) + ` on GitHub">webdiskstat ` + escapeHTML(version) + `</a>`
+	return `<div class="footer-leading">` + securityStatusHTML(encrypted) + projectLink + `</div><span class="footer-note">Self-contained offline report · No network requests · Percent change uses the before size; “New” means no baseline.</span>`
 }

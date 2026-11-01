@@ -415,10 +415,119 @@
         display: none!important;
       }
       footer {
-        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+        margin-top: 14px;
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
         color: var(--muted);
         font-size: 11px;
       }
+      .footer-leading {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        min-width: 0;
+      }
+      .footer-note {
+        flex: 1 1 320px;
+        min-width: 0;
+        text-align: right;
+      }
+      .footer-project {
+        color: var(--muted);
+        text-decoration: none;
+        white-space: nowrap;
+      }
+      .footer-project:hover {
+        color: var(--ink);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .footer-project:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 2px;
+      }
+      .report-footer .report-security {
+        min-height: 22px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel-2);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      .report-footer .security-icon {
+        width: 14px;
+        height: 14px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .security-info {
+        position: relative;
+        flex: 0 0 auto;
+      }
+      .security-info > summary {
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+      }
+      .security-info > summary::-webkit-details-marker {
+        display: none;
+      }
+      .security-info-mark {
+        width: 14px;
+        height: 14px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+      }
+      .security-info-panel {
+        position: absolute;
+        z-index: 100;
+        bottom: calc(100% + 10px);
+        left: 0;
+        width: min(350px,calc(100vw - 28px));
+        max-height: calc(100dvh - 110px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--ink);
+        box-shadow: var(--shadow);
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: normal;
+      }
+      .security-info-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 8px;
+      }
+      .security-info-head h2 { margin: 0; font-size: 14px; line-height: 1.4; }
+      .security-info-close { min-height: 32px; padding: 4px 8px; font-size: 12px; font-weight: 600; }
+      .security-info-panel p { margin: 0; }
+      .security-info-panel p+p { margin-top: 10px; }
+      .security-info-panel code { font-size: inherit; }
       @media(max-width:1100px) {
         .rankings {
           grid-template-columns: repeat(2,minmax(0,1fr));
@@ -482,6 +591,13 @@
         .source {
           margin-top: 4px;
         }
+        footer {
+          align-items: flex-start;
+        }
+        .footer-note {
+          flex-basis: 100%;
+          text-align: left;
+        }
         td:first-child {
           max-width: 280px;
         }
@@ -504,8 +620,22 @@
         color: var(--accent);
       }
       header .theme-toggle {
-        margin: 0 0 0 auto;
+        margin: 0;
         flex: 0 0 auto;
+      }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+        flex: 0 0 auto;
+      }
+      .header-actions > .icon-btn {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        padding: 6px;
       }
       .theme-switch { position: relative; }
       .theme-icon { fill: none; stroke-linecap: round; stroke-linejoin: round; }
@@ -522,12 +652,11 @@
       #diffBrowser .browser-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
       #diffBrowser .browser-actions label { margin: 0; }
       #diffBrowser .browser-actions button, #diffBrowser .browser-actions select { min-height: 36px; }
-      #diffBrowser .browser-toolbar { display: grid; grid-template-columns: minmax(140px,1fr) minmax(200px,360px) auto auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--header); border-bottom: 1px solid var(--line); }
+      #diffBrowser .browser-toolbar { display: grid; grid-template-columns: minmax(140px,1fr) minmax(200px,360px) auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--header); border-bottom: 1px solid var(--line); }
       #diffBrowser .pathbar { min-height: 36px; }
       #diffBrowser .browser-toolbar .pathbar { order: 0; }
       #diffBrowser .browser-toolbar .search { order: 1; }
       #diffBrowser .browser-toolbar .browser-actions { order: 2; }
-      #diffBrowser .browser-toolbar > .icon-btn { order: 3; }
       #diffBrowser .crumbs { border: 0; padding: 0; flex-wrap: nowrap; }
       #diffBrowser .crumbs button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #diffBrowser .search { position: relative; min-width: 0; }
@@ -561,7 +690,6 @@
         #diffBrowser .browser-toolbar { grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 8px; }
         #diffBrowser .pathbar { grid-column: 1 / -1; }
         #diffBrowser .browser-actions { grid-column: 1 / -1; width: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) auto; }
-        #diffBrowser .browser-toolbar > .icon-btn { grid-column: 2; grid-row: 2; }
         #diffBrowser .browser-actions select { width: 100%; min-width: 0; }
         #diffBrowser .browser-actions #csv { grid-column: 1 / -1; }
         #diffBrowser .browser-selection { flex-wrap: wrap; gap: 4px; }
@@ -575,10 +703,13 @@
       <strong>
         webdiskstat
       </strong>
-      <span>
-        Snapshot comparison
-      </span>
-      <!-- DIFF_THEME_SWITCH -->
+      <span>Snapshot comparison</span>
+      <div class="header-actions">
+        <button id="browserHelpButton" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 4.2M12 17h.01"/></svg>
+        </button>
+        <!-- DIFF_THEME_SWITCH -->
+      </div>
     </header>
     <main>
       <div id="loading" role="status" aria-live="polite">
@@ -667,9 +798,6 @@
               <button id="reset" type="button">Reset view</button>
               <button id="csv" type="button">Export all changes · CSV</button>
             </div>
-            <button id="browserHelpButton" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 4.2M12 17h.01"/></svg>
-            </button>
           </div>
           <div id="selectionInfo" class="browser-selection" aria-live="polite"></div>
           <div id="tree" class="tree" role="region" tabindex="0" aria-label="File and folder table. Focus this region and use left or right arrow to scroll horizontally and see all columns."></div>
@@ -712,8 +840,8 @@
           </div>
         </section>
       </div>
-      <footer>
-        Self-contained offline report · No network requests · Percent change uses the before size; “New” means no baseline.
+      <footer class="report-footer">
+        <!-- DIFF_FOOTER_CONTENT -->
       </footer>
     </main>
     <dialog id="passwordDialog" aria-labelledby="passwordTitle">

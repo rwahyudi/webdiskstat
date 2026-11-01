@@ -300,6 +300,8 @@ for page in pages:
  page.reload();page.locator('.tree-header-cell[data-column="modified"]').wait_for();assert page.evaluate('(key)=>JSON.parse(localStorage.getItem(key)).modified',widthkey)==saved
  page.locator('#tree .row[data-id]').first.focus();page.keyboard.press('?')
  help=page.locator('#browserHelp' if page==diff else '#helpPage');assert help.is_visible();page.keyboard.press('Escape');assert help.is_hidden()
+ if page==diff:
+  page.locator('#browserHelpButton').click();assert help.is_visible();page.keyboard.press('Escape');assert help.is_hidden()
 # Diff-specific columns/filters and the normal browser interaction remain distinct.
 diff.locator('#reset').click();diff.locator('#status').select_option('added')
 assert snapshot(diff)['total']==1
@@ -316,6 +318,9 @@ for theme in ['dark','light']:
  for device,size in [('desktop',{'width':1440,'height':1100}),('mobile',{'width':390,'height':844})]:
   diff.set_viewport_size(size);diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
   assert diff.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
+  assert diff.locator('#browserHelpButton').evaluate('(e)=>e.closest("header")!==null')
+  header=diff.locator('header').bounding_box();help_box=diff.locator('#browserHelpButton').bounding_box()
+  assert abs(help_box['y']+help_box['height']/2-(header['y']+header['height']/2))<3
   assert diff.locator('#tree .row[data-id]').count()<80
   assert diff.locator('#status').evaluate('(e)=>e.closest(".browser-toolbar")!==null')
   if device=='desktop':
@@ -323,7 +328,6 @@ for theme in ['dark','light']:
    assert all(abs(diff.locator(selector).bounding_box()['y']-search_y)<3 for selector in ['#status','#reset','#csv'])
   if device=='mobile':
    assert diff.locator('#status').bounding_box()['width']>=120
-   assert abs(diff.locator('#browserHelpButton').bounding_box()['y']-diff.locator('#search').bounding_box()['y'])<3
    diff.locator('#tree').focus();diff.keyboard.press('ArrowRight');assert diff.locator('#tree').evaluate('(e)=>e.scrollLeft')>0
    diff.keyboard.press('ArrowLeft');diff.locator('#tree').evaluate('(e)=>e.scrollLeft=0')
   if out:diff.screenshot(path=str(pathlib.Path(out)/(device+'-'+theme+'.png')))
@@ -335,6 +339,9 @@ page=new_page();load(page,'plain')
 assert 0<page.locator('#tree .row[data-id]').count()<80
 assert page.evaluate('DiffBrowser.snapshot().total')==262
 assert page.locator('#netSize').inner_text()=='0 B'
+assert page.locator('#reportSecurityInfo').is_visible()
+page.locator('#reportSecurityInfo summary').click();assert page.locator('#reportSecurityExplanation').is_visible()
+page.get_by_role('button',name='Close encryption information').click();assert not page.locator('#reportSecurityInfo').evaluate('(e)=>e.open')
 assert page.evaluate('window.diffXSS') is None
 assert 'baseline-secret.json' in page.locator('#beforeSource').inner_text()
 times=page.evaluate("[captureTime('1793404800'),captureTime('2026-10-31T00:00:00Z'),captureTime(''),captureTime('invalid'),captureTime(null),captureTime('99999999999999999')]")
@@ -372,8 +379,9 @@ page.locator('#reset').click();page.locator('.tree-header-cell[data-column="name
 assert page.locator('.tree-header-cell[data-column="name"]').get_attribute('aria-sort')=='ascending'
 assert '</script>' in page.locator('#tree').inner_text() and page.evaluate('window.diffXSS') is None
 page.locator('#search').focus();page.keyboard.press('Tab');assert page.locator('#status').evaluate('(e)=>document.activeElement===e')
-for selector in ['#reset','#csv','#browserHelpButton']:
+for selector in ['#reset','#csv']:
  page.keyboard.press('Tab');assert page.locator(selector).evaluate('(e)=>document.activeElement===e')
+page.locator('#browserHelpButton').focus();assert page.locator('#browserHelpButton').evaluate('(e)=>document.activeElement===e')
 page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
 load(page,'empty');assert 'No changes found' in page.locator('#empty').inner_text();assert page.locator('#csv').is_disabled()
 page.goto((root/'encrypted.html').as_uri());page.locator('#passwordDialog').wait_for(state='visible')

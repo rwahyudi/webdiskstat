@@ -81,14 +81,13 @@ func TestDiffReportCompressedJSONRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(&got, want) {
 		t.Fatal("gzip JSON did not round-trip")
 	}
-	for _, forbidden := range []string{"window.diffXSS=1", "baseline-secret.json", "/* DIFF_", "https://", "http://"} {
-		// SVG namespace URI is an identifier, not a network request.
-		if forbidden == "http://" {
-			continue
-		}
+	for _, forbidden := range []string{"window.diffXSS=1", "baseline-secret.json", "/* DIFF_"} {
 		if strings.Contains(html, forbidden) {
 			t.Errorf("artifact contains %q", forbidden)
 		}
+	}
+	if strings.Count(html, `https://`) != 1 || !strings.Contains(html, `href="https://github.com/rwahyudi/webdiskstat"`) {
+		t.Error("report should contain only the informational webdiskstat project link")
 	}
 	// The ordinary icon helper uses innerHTML only for its bundled, trusted SVG
 	// library. Snapshot names/paths still use textContent (also exercised below).
@@ -96,6 +95,35 @@ func TestDiffReportCompressedJSONRoundTrip(t *testing.T) {
 		if !strings.Contains(html, required) {
 			t.Errorf("missing runtime feature %s", required)
 		}
+	}
+}
+
+func TestDiffReportHeaderHelpAndFooterSecurityState(t *testing.T) {
+	plain, err := renderDiffReport(diffReportFixture(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headerStart := strings.Index(plain, "<header>")
+	headerEnd := strings.Index(plain, "</header>")
+	if headerStart < 0 || headerEnd < headerStart || !strings.Contains(plain[headerStart:headerEnd], `id="browserHelpButton"`) {
+		t.Fatal("help button must be in the page header")
+	}
+	if !strings.Contains(plain, `class="report-security plain"`) || !strings.Contains(plain, `>Data not encrypted</span>`) ||
+		!strings.Contains(plain, `webdiskstat version `+escapeHTML(version)+` on GitHub`) || !strings.Contains(plain, `Self-contained offline report`) {
+		t.Fatal("plain report footer is missing encryption disclosure or project information")
+	}
+	if strings.Contains(plain, `<!-- DIFF_FOOTER_CONTENT -->`) {
+		t.Fatal("footer placeholder was not rendered")
+	}
+
+	password := "footer-test-password"
+	encrypted, err := renderDiffReport(diffReportFixture(), &password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(encrypted, `class="report-security encrypted"`) || !strings.Contains(encrypted, `>Data encrypted</span>`) ||
+		strings.Contains(encrypted, `Data not encrypted`) || !strings.Contains(encrypted, `webdiskstat version `+escapeHTML(version)+` on GitHub`) {
+		t.Fatal("encrypted report footer does not correctly disclose encryption and project information")
 	}
 }
 
