@@ -88,7 +88,7 @@
       }
       .summary {
         display: grid;
-        grid-template-columns: 1fr 1fr 1.2fr;
+        grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr);
       }
       .summary article {
         padding: 10px 12px;
@@ -123,13 +123,12 @@
         color: var(--down);
       }
       .gross {
-        display: flex;
-        gap: 18px;
-        flex-wrap: wrap;
-        padding: 6px 12px;
-        border-top: 1px solid var(--line);
-        background: var(--panel-2);
+        display: grid;
+        gap: 5px;
       }
+      .gross > span:not(#changeCount) { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+      .gross > span:not(#changeCount) strong { white-space: nowrap; }
+      #changeCount { margin-top: 3px; font-size: 11px; }
       .gross strong {
         font-variant-numeric: tabular-nums;
       }
@@ -547,17 +546,12 @@
         h1 {
           font-size: 14px;
         }
-        .summary {
-          grid-template-columns: 1fr 1fr;
-        }
+        .summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
         .summary article {
           padding: 8px 10px;
         }
-        .summary article:last-child {
-          grid-column: 1 / -1;
-          border-top: 1px solid var(--line);
-          border-left: 0;
-        }
+        .summary article:nth-child(3) { border-top: 1px solid var(--line); border-left: 0; }
+        .summary article:nth-child(4) { border-top: 1px solid var(--line); }
         .metric {
           font-size: 18px;
         }
@@ -601,6 +595,11 @@
         td:first-child {
           max-width: 280px;
         }
+      }
+      @media(max-width:900px) {
+        .summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+        .summary article:nth-child(3) { border-top: 1px solid var(--line); border-left: 0; }
+        .summary article:nth-child(4) { border-top: 1px solid var(--line); }
       }
       th[aria-sort="ascending"] button::after,th[aria-sort="descending"] button::after {
         content: "";
@@ -757,6 +756,14 @@
               </small>
             </article>
             <article>
+              <h2>Gross change</h2>
+              <div class="gross">
+                <span>Gross increases<strong id="increased" class="up"></strong></span>
+                <span>Gross decreases<strong id="decreased" class="down"></strong></span>
+                <span id="changeCount" class="muted"></span>
+              </div>
+            </article>
+            <article>
               <h2>
                 Net change
               </h2>
@@ -768,25 +775,8 @@
               </div>
             </article>
           </div>
-          <div class="gross">
-            <span>
-              Gross increases
-              <strong id="increased" class="up">
-              </strong>
-            </span>
-            <span>
-              Gross decreases
-              <strong id="decreased" class="down">
-              </strong>
-            </span>
-            <span id="changeCount" class="muted">
-            </span>
-          </div>
         </section>
-        <section id="diffBrowser" class="panel" aria-labelledby="explorerTitle">
-          <div class="section-head">
-            <h2 id="explorerTitle">Explore changes</h2>
-          </div>
+        <section id="diffBrowser" class="panel" aria-label="Explore changes">
           <div class="browser-toolbar">
             <div class="pathbar">
               <nav id="crumbs" class="crumbs" aria-label="Path"></nav>

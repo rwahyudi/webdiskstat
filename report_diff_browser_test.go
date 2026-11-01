@@ -316,8 +316,16 @@ if out:pathlib.Path(out).mkdir(parents=True,exist_ok=True)
 for theme in ['dark','light']:
  diff.evaluate('(theme)=>applyTheme(theme,true)',theme);diff.wait_for_timeout(250)
  for device,size in [('desktop',{'width':1440,'height':1100}),('mobile',{'width':390,'height':844})]:
-  diff.set_viewport_size(size);diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
+  diff.set_viewport_size(size);diff.evaluate('window.scrollTo(0,0)')
+  if out:diff.screenshot(path=str(pathlib.Path(out)/('summary-'+device+'-'+theme+'.png')))
+  diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
   assert diff.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
+  summary_columns=diff.locator('#summarySection .summary').evaluate('(e)=>getComputedStyle(e).gridTemplateColumns.split(" ").length')
+  assert summary_columns==(4 if device=='desktop' else 2),summary_columns
+  assert diff.locator('#diffBrowser > .section-head').count()==0
+  gross_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#increased').closest('article'))")
+  net_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#netSize').closest('article'))")
+  assert gross_index==2 and net_index==3,(gross_index,net_index)
   assert diff.locator('#browserHelpButton').evaluate('(e)=>e.closest("header")!==null')
   header=diff.locator('header').bounding_box();help_box=diff.locator('#browserHelpButton').bounding_box()
   assert abs(help_box['y']+help_box['height']/2-(header['y']+header['height']/2))<3
