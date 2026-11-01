@@ -631,28 +631,6 @@
             </span>
           </div>
         </section>
-        <section id="rankingsSection" class="panel" aria-labelledby="largestTitle">
-          <div class="section-head">
-            <h2 id="largestTitle">
-              Largest changes
-            </h2>
-            <div class="ranking-controls">
-              <label for="rankLimit">Entries per category</label>
-              <select id="rankLimit" aria-controls="rankings">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </div>
-          </div>
-          <div id="rankings" class="rankings">
-          </div>
-          <div class="notice">
-            Gross totals count each file and each directory’s own allocation once. Directory rankings overlap and should not be added together.
-            <p id="rankingMessage" role="status" aria-live="polite" hidden></p>
-          </div>
-        </section>
         <section id="diffBrowser" class="panel" aria-labelledby="explorerTitle">
           <div class="section-head">
             <h2 id="explorerTitle">Explore changes</h2>
@@ -702,6 +680,28 @@
             </dl>
             <p class="notice">Sizes and file-count shortcuts use the after snapshot. Percent columns show change, not snapshot share. Metadata comparison does not read file contents; renames appear as removal and addition.</p>
           </dialog>
+        </section>
+        <section id="rankingsSection" class="panel" aria-labelledby="largestTitle">
+          <div class="section-head">
+            <h2 id="largestTitle">
+              Largest changes
+            </h2>
+            <div class="ranking-controls">
+              <label for="rankLimit">Entries per category</label>
+              <select id="rankLimit" aria-controls="rankings">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+          <div id="rankings" class="rankings">
+          </div>
+          <div class="notice">
+            Gross totals count each file and each directory’s own allocation once. Directory rankings overlap and should not be added together.
+            <p id="rankingMessage" role="status" aria-live="polite" hidden></p>
+          </div>
         </section>
       </div>
       <footer>

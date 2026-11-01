@@ -309,8 +309,10 @@ for theme in ['dark','light']:
  shape=lambda tab:tab.locator('.theme-switcher-v2').evaluate('(e)=>({width:getComputedStyle(e).width,height:getComputedStyle(e).height,radius:getComputedStyle(e).borderRadius,background:getComputedStyle(e).backgroundColor})')
  assert shape(page)==shape(reference)
  assert page.locator('.theme-switcher-v2').inner_html()==reference.locator('.theme-switcher-v2').inner_html()
- summary=page.locator('#summarySection').bounding_box();ranking=page.locator('#rankingsSection').bounding_box()
- assert summary['y']+summary['height']<=ranking['y'] and abs(summary['width']-ranking['width'])<1
+ summary=page.locator('#summarySection').bounding_box();browser_box=page.locator('#diffBrowser').bounding_box();ranking=page.locator('#rankingsSection').bounding_box()
+ assert summary['y']+summary['height']<=browser_box['y'] and browser_box['y']+browser_box['height']<=ranking['y']
+ assert abs(summary['x']-browser_box['x'])<1 and abs(browser_box['x']-ranking['x'])<1
+ assert abs(summary['width']-browser_box['width'])<1 and abs(browser_box['width']-ranking['width'])<1
  assert page.locator('#tree .row[data-id]').first.bounding_box()['height']==36
 page.evaluate("applyTheme('dark',true)");page.locator('#themeToggle').focus();page.keyboard.press('Space')
 assert page.locator('#themeToggle').is_checked() and page.locator('#themeToggle').get_attribute('aria-label')=='Switch to dark theme'
@@ -342,7 +344,7 @@ assert page.locator('script[type="application/json"]').count()==1 and page.evalu
 categories=['growingFiles','shrinkingFiles','growingDirectories','shrinkingDirectories']
 def counts():return [page.locator('[data-category="'+k+'"] tbody tr').count() for k in categories]
 def geometry():
- boxes=[page.locator('#summarySection').bounding_box(),page.locator('#rankingsSection').bounding_box(),page.locator('#diffBrowser').bounding_box()]
+ boxes=[page.locator('#summarySection').bounding_box(),page.locator('#diffBrowser').bounding_box(),page.locator('#rankingsSection').bounding_box()]
  assert all(abs(b['x']-boxes[0]['x'])<1 and abs(b['width']-boxes[0]['width'])<1 for b in boxes)
  assert all(a['y']+a['height']<=b['y'] for a,b in zip(boxes,boxes[1:]))
  assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
