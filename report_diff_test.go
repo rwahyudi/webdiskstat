@@ -127,6 +127,37 @@ func TestDiffReportHeaderHelpAndFooterSecurityState(t *testing.T) {
 	}
 }
 
+func TestDiffReportHelpIconMatchesNormalReport(t *testing.T) {
+	root := &Node{Name: "root", Path: "/data/root", Type: "dir"}
+	normal, err := renderReport(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff, err := renderDiffReport(diffReportFixture(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iconContent := func(document, buttonID string) string {
+		t.Helper()
+		buttonStart := strings.Index(document, `id="`+buttonID+`"`)
+		if buttonStart < 0 {
+			t.Fatalf("missing help button %q", buttonID)
+		}
+		buttonEnd := strings.Index(document[buttonStart:], `</button>`)
+		if buttonEnd < 0 {
+			t.Fatalf("unterminated help button %q", buttonID)
+		}
+		match := regexp.MustCompile(`(?s)<svg[^>]*>(.*?)</svg>`).FindStringSubmatch(document[buttonStart : buttonStart+buttonEnd])
+		if len(match) != 2 {
+			t.Fatalf("missing SVG in help button %q", buttonID)
+		}
+		return match[1]
+	}
+	if normalIcon, diffIcon := iconContent(normal, "helpButton"), iconContent(diff, "browserHelpButton"); normalIcon != diffIcon {
+		t.Errorf("diff help icon differs from normal report icon:\nnormal: %s\ndiff: %s", normalIcon, diffIcon)
+	}
+}
+
 func TestDiffReportEncryptedArtifact(t *testing.T) {
 	password := "diff-password"
 	html, err := renderDiffReport(diffReportFixture(), &password)
