@@ -65,7 +65,16 @@ func TestDiffReportBrowserParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runDiffBrowserPython(t, diffBrowserParityCheck, map[string]string{"diff": diff, "normal": normal})
+	password := "theme-password"
+	encrypted, err := renderDiffReport(report, &password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalEncrypted, err := renderReport(normalRoot, &password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDiffBrowserPython(t, diffBrowserParityCheck, map[string]string{"diff": diff, "normal": normal, "encrypted": encrypted, "normal-encrypted": normalEncrypted})
 }
 
 func TestDiffReportBrowserGroupedChanges(t *testing.T) {
@@ -314,7 +323,7 @@ assert diff.locator('.tree-header-cell[data-column="percent"]').count()==1
 out=os.environ.get('DIFF_BROWSER_PARITY_SCREENSHOTS')
 if out:pathlib.Path(out).mkdir(parents=True,exist_ok=True)
 for theme in ['dark','light']:
- diff.evaluate('(theme)=>applyTheme(theme,true)',theme);diff.wait_for_timeout(250)
+ diff.evaluate('(theme)=>applyTheme(theme,true)',theme);normal.evaluate('(theme)=>document.documentElement.dataset.theme=theme',theme);diff.wait_for_timeout(250);normal.wait_for_timeout(250)
  for device,size in [('desktop',{'width':1440,'height':1100}),('mobile',{'width':390,'height':844})]:
   diff.set_viewport_size(size);diff.evaluate('window.scrollTo(0,0)')
   if out:diff.screenshot(path=str(pathlib.Path(out)/('summary-'+device+'-'+theme+'.png')))
@@ -327,6 +336,24 @@ for theme in ['dark','light']:
   net_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#netSize').closest('article'))")
   assert gross_index==2 and net_index==3,(gross_index,net_index)
   assert diff.locator('#browserHelpButton').evaluate('(e)=>e.closest("header")!==null')
+  assert diff.evaluate("Array.from(document.querySelector('header .header-actions').children).map(e=>e.id||e.className).join(',').indexOf('theme-toggle') < Array.from(document.querySelector('header .header-actions').children).map(e=>e.id||e.className).join(',').indexOf('browserHelpButton')")
+  icon_styles=lambda tab,selector:tab.locator(selector).evaluate('(e)=>{const s=getComputedStyle(e);return [s.fill,s.stroke,s.strokeWidth,s.strokeLinecap,s.strokeLinejoin]}')
+  assert icon_styles(diff,'#browserHelpButton svg')==icon_styles(normal,'#helpButton svg'),(icon_styles(diff,'#browserHelpButton svg'),icon_styles(normal,'#helpButton svg'))
+  footer_style=lambda tab:tab.locator('footer').evaluate('(e)=>{const s=getComputedStyle(e);return [s.backgroundColor,s.borderTopColor,s.borderTopWidth,s.padding,s.minHeight,s.fontSize,s.gap]}')
+  assert footer_style(diff)==footer_style(normal),(footer_style(diff),footer_style(normal))
+  for state in ['plain','encrypted']:
+   if state=='encrypted':
+    diff.goto((root/'encrypted.html').as_uri());diff.locator('#passwordDialog').wait_for(state='visible');diff.locator('#password').fill('theme-password');diff.get_by_role('button',name='Unlock',exact=True).click();diff.locator('#report').wait_for(state='visible',timeout=60000)
+    normal.goto((root/'normal-encrypted.html').as_uri());normal.locator('#reportPasswordDialog').wait_for(state='visible');normal.locator('#reportPasswordInput').fill('theme-password');normal.locator('#reportPasswordDialog button[type="submit"]').click();normal.locator('#tree .row[data-id]').first.wait_for(timeout=60000)
+   badge_style=lambda tab:tab.locator('footer .report-security').evaluate('(e)=>{const s=getComputedStyle(e);return [s.color,s.backgroundColor,s.borderTopColor]}')
+   assert badge_style(diff)==badge_style(normal),(theme,state,badge_style(diff),badge_style(normal))
+   if state=='encrypted':
+    diff.goto((root/'diff.html').as_uri());diff.locator('#report').wait_for(state='visible');load(normal,'normal')
+  diff.evaluate('window.scrollTo(0,0)')
+  if out:diff.screenshot(path=str(pathlib.Path(out)/('header-'+device+'-'+theme+'.png')))
+  diff.locator('footer').evaluate('(e)=>e.scrollIntoView({block:"end"})')
+  if out:diff.screenshot(path=str(pathlib.Path(out)/('footer-'+device+'-'+theme+'.png')))
+  diff.evaluate('window.scrollTo(0,0)')
   header=diff.locator('header').bounding_box();help_box=diff.locator('#browserHelpButton').bounding_box()
   assert abs(help_box['y']+help_box['height']/2-(header['y']+header['height']/2))<3
   diff.locator('#browserHelpButton').click()

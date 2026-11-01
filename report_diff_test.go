@@ -156,6 +156,16 @@ func TestDiffReportHelpIconMatchesNormalReport(t *testing.T) {
 	if normalIcon, diffIcon := iconContent(normal, "helpButton"), iconContent(diff, "browserHelpButton"); normalIcon != diffIcon {
 		t.Errorf("diff help icon differs from normal report icon:\nnormal: %s\ndiff: %s", normalIcon, diffIcon)
 	}
+	headerStart, headerEnd := strings.Index(diff, "<header>"), strings.Index(diff, "</header>")
+	header := diff[headerStart:headerEnd]
+	if theme, help := strings.Index(header, `class="theme-toggle"`), strings.Index(header, `id="browserHelpButton"`); theme < 0 || help < 0 || theme > help {
+		t.Error("theme toggle must precede Help in the header")
+	}
+	for _, style := range []string{"stroke: currentColor;", "fill: none;", "stroke-width: 1.75;", "stroke-linecap: round;", "stroke-linejoin: round;"} {
+		if !strings.Contains(diff, style) {
+			t.Errorf("diff help icon is missing normal icon styling %q", style)
+		}
+	}
 }
 
 func TestDiffReportEncryptedArtifact(t *testing.T) {

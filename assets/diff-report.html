@@ -414,16 +414,20 @@
         display: none!important;
       }
       footer {
+        min-width: 0;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 30px;
         display: flex;
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
-        gap: 8px 14px;
-        margin-top: 14px;
-        padding: 10px 0;
+        gap: 8px 12px;
+        padding: 6px 14px;
         border-top: 1px solid var(--line);
+        background: var(--header);
         color: var(--muted);
-        font-size: 11px;
+        font-size: 16px;
       }
       .footer-leading {
         display: flex;
@@ -466,6 +470,22 @@
         font-weight: 650;
         line-height: 1;
         white-space: nowrap;
+      }
+      .report-footer .report-security.encrypted {
+        border-color: color-mix(in srgb,var(--accent-2) 60%,var(--line));
+        background: color-mix(in srgb,var(--accent-2) 14%,transparent);
+        color: var(--accent-2);
+      }
+      .report-footer .report-security.plain {
+        border-color: color-mix(in srgb,var(--warn) 50%,var(--line));
+        background: color-mix(in srgb,var(--warn) 10%,transparent);
+        color: var(--warn);
+      }
+      html[data-theme="light"] .report-footer .report-security.encrypted {
+        background: color-mix(in srgb,var(--accent-2) 14%,var(--panel));
+      }
+      html[data-theme="light"] .report-footer .report-security.plain {
+        background: color-mix(in srgb,var(--warn) 14%,var(--panel));
       }
       .report-footer .security-icon {
         width: 14px;
@@ -635,6 +655,27 @@
         display: grid;
         place-items: center;
         padding: 6px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink);
+        box-shadow: none;
+      }
+      .header-actions > .icon-btn .icon {
+        width: 20px;
+        height: 20px;
+        display: block;
+        color: inherit;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .header-actions > .icon-btn:hover {
+        background: var(--soft);
+        border-color: var(--line);
+        color: var(--accent);
       }
       .theme-switch { position: relative; }
       .theme-icon { fill: none; stroke-linecap: round; stroke-linejoin: round; }
@@ -717,10 +758,10 @@
       </strong>
       <span>Snapshot comparison</span>
       <div class="header-actions">
+        <!-- DIFF_THEME_SWITCH -->
         <button id="browserHelpButton" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.8 2.8 0 0 1 5 1.7c0 2-2.5 2.2-2.5 4.3"/><path d="M12 18h.01"/></svg>
         </button>
-        <!-- DIFF_THEME_SWITCH -->
       </div>
     </header>
     <main>
@@ -858,10 +899,10 @@
           </div>
         </section>
       </div>
-      <footer class="report-footer">
-        <!-- DIFF_FOOTER_CONTENT -->
-      </footer>
     </main>
+    <footer class="report-footer">
+      <!-- DIFF_FOOTER_CONTENT -->
+    </footer>
     <dialog id="passwordDialog" aria-labelledby="passwordTitle">
       <form id="passwordForm">
         <h2 id="passwordTitle">
