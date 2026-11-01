@@ -19,22 +19,50 @@ window.DiffBrowser = (() => {
     sortKey: 'name'
   }, {
     key: 'before',
+    group: 'Size',
     label: 'Before',
     minWidth: 82,
     numeric: true
   }, {
     key: 'size',
+    group: 'Size',
     label: 'After',
     minWidth: 82,
     numeric: true
   }, {
     key: 'delta',
+    group: 'Size',
     label: 'Change',
     minWidth: 90,
     numeric: true
   }, {
     key: 'percent',
-    label: '% change',
+    group: 'Size',
+    label: 'Change %',
+    minWidth: 74,
+    numeric: true
+  }, {
+    key: 'beforeItems',
+    group: 'Items',
+    label: 'Before',
+    minWidth: 82,
+    numeric: true
+  }, {
+    key: 'items',
+    group: 'Items',
+    label: 'After',
+    minWidth: 82,
+    numeric: true
+  }, {
+    key: 'itemsDelta',
+    group: 'Items',
+    label: 'Change',
+    minWidth: 90,
+    numeric: true
+  }, {
+    key: 'itemsPercent',
+    group: 'Items',
+    label: 'Change %',
     minWidth: 74,
     numeric: true
   }, {
@@ -45,11 +73,6 @@ window.DiffBrowser = (() => {
   }, {
     key: 'files',
     label: 'Files after',
-    minWidth: 82,
-    numeric: true
-  }, {
-    key: 'items',
-    label: 'Items after',
     minWidth: 82,
     numeric: true
   }, {
@@ -64,16 +87,19 @@ window.DiffBrowser = (() => {
   for (const column of TREE_COLUMNS) {
     column.grid ||= column.minWidth + 'px';
     column.sortKey ||= column.key;
-    column.menuLabel = column.label;
+    column.menuLabel = column.group ? column.group + ' ' + column.label.toLowerCase() : column.label;
   }
   const DEFAULT_TREE_COLUMNS = {
     before: true,
     size: true,
     delta: true,
     percent: true,
-    beforeFiles: true,
-    files: true,
-    items: false,
+    beforeItems: true,
+    items: true,
+    itemsDelta: true,
+    itemsPercent: true,
+    beforeFiles: false,
+    files: false,
     modified: false,
     status: true
   };
@@ -132,7 +158,12 @@ window.DiffBrowser = (() => {
     const children = filteredChildren(node),
       direction = state.sortDir === 'asc' ? 1 : -1;
     children.sort((a, b) => {
-      const value = n => state.sortKey === 'percent' ? n.before ? n.delta / n.before : n.after ? Infinity : 0 : n[state.sortKey];
+      const value = n => {
+        if (state.sortKey === 'percent') return n.before ? n.delta / n.before : n.after ? Infinity : 0;
+        if (state.sortKey === 'itemsPercent') return n.beforeItems ? (n.afterItems - n.beforeItems) / n.beforeItems : n.afterItems ? Infinity : 0;
+        if (state.sortKey === 'itemsDelta') return n.afterItems - n.beforeItems;
+        return n[state.sortKey];
+      };
       const av = value(a),
         bv = value(b);
       let result = typeof av === 'number' ? av === bv ? 0 : av > bv ? 1 : -1 : String(av ?? '').localeCompare(String(bv ?? ''));
@@ -247,6 +278,7 @@ window.DiffBrowser = (() => {
             break;
           case 'percent':
             cell.textContent = percentage(child);
+            cell.classList.add(child.delta > 0 ? 'up' : child.delta < 0 ? 'down' : 'muted');
             break;
           case 'files':
             cell.textContent = formatCount(child.afterFiles);
@@ -257,6 +289,16 @@ window.DiffBrowser = (() => {
           case 'items':
             cell.textContent = child.afterItems === undefined ? '—' : formatCount(child.afterItems);
             break;
+          case 'beforeItems':
+            cell.textContent = child.beforeItems === undefined ? '—' : formatCount(child.beforeItems);
+            break;
+          case 'itemsDelta':
+          case 'itemsPercent': {
+            const delta = child.afterItems - child.beforeItems;
+            cell.textContent = column.key === 'itemsDelta' ? signed(delta) : percentage({before: child.beforeItems, after: child.afterItems, delta});
+            cell.classList.add(delta > 0 ? 'up' : delta < 0 ? 'down' : 'muted');
+            break;
+          }
           case 'modified':
             cell.textContent = formatListModifiedTime(child.afterMtime);
             cell.title = formatModifiedTime(child.afterMtime) || 'Modified time unavailable';
@@ -269,18 +311,56 @@ window.DiffBrowser = (() => {
             break;
         }
         cell.title ||= cell.textContent;
-        spoken.push(column.label + ': ' + cell.textContent);
+        spoken.push(column.menuLabel + ': ' + cell.textContent);
       }
       row.append(cell);
     }
     row.setAttribute('aria-label', spoken.join(' · '));
     return row;
   }
+  // Both header tiers use the row grid, so visibility and persisted resizing stay aligned.
+  function renderDiffTreeHeader() {
+    const header = document.createElement('div');
+    header.className = 'tree-header diff-grouped-header';
+    const columnsMenu = makeTreeColumnsMenu();
+    const columns = visibleTreeColumns();
+    for (const group of ['Size', 'Items']) {
+      const indexes = columns.flatMap((column, index) => column.group === group ? [index] : []);
+      if (!indexes.length) continue;
+      const heading = document.createElement('div');
+      heading.className = 'tree-column-group';
+      heading.textContent = group;
+      heading.style.gridColumn = (indexes[0] + 1) + ' / ' + (indexes.at(-1) + 2);
+      heading.style.gridRow = '1';
+      header.append(heading);
+    }
+    columns.forEach((column, index) => {
+      column.hasSeparator = index < columns.length - 1;
+      let content;
+      if (column.key === 'name') {
+        content = document.createElement('div');
+        content.className = 'tree-name-head';
+        content.append(makeParentHeaderButton(), makeHeaderButton('Name', 'name'), makeTreeColumnsButton(columnsMenu));
+      } else {
+        content = makeHeaderButton(column.label, column.sortKey, column.numeric);
+        // Nested labels need the metric in their accessible names, including percent.
+        const label = 'Sort by ' + column.menuLabel;
+        content.title = label;
+        content.setAttribute('aria-label', label + (state.sortKey === column.sortKey ? ', currently ' + (state.sortDir === 'asc' ? 'ascending' : 'descending') : ''));
+      }
+      const cell = makeTreeHeaderCell(column, content);
+      cell.style.gridColumn = String(index + 1);
+      cell.style.gridRow = column.group ? '2' : '1 / 3';
+      header.append(cell);
+    });
+    header.append(columnsMenu);
+    el.tree.append(header);
+  }
   function renderTree() {
     el.tree.replaceChildren();
     resetTreeView();
     applyTreeColumnLayout();
-    renderTreeHeader();
+    renderDiffTreeHeader();
     const children = sortedChildren(state.current);
     ensureListSelection(children);
     document.getElementById('range').textContent = children.length.toLocaleString() + ' paths';

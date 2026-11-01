@@ -68,6 +68,21 @@ func TestDiffReportBrowserParity(t *testing.T) {
 	runDiffBrowserPython(t, diffBrowserParityCheck, map[string]string{"diff": diff, "normal": normal})
 }
 
+func TestDiffReportBrowserGroupedChanges(t *testing.T) {
+	root := &DiffNode{Name: "changes", Path: "/changes", Type: "dir", Status: "grown"}
+	for _, sample := range []struct {
+		name          string
+		before, after int64
+	}{{"increase", 10, 15}, {"decrease", 10, 5}, {"zero", 10, 10}, {"new", 0, 5}, {"empty", 0, 0}, {"removed", 10, 0}} {
+		root.Children = append(root.Children, &DiffNode{Name: sample.name, Path: root.Path + "/" + sample.name, Type: "dir", Before: sample.before, After: sample.after, Delta: sample.after - sample.before, BeforeItems: int(sample.before), AfterItems: int(sample.after), Status: "grown"})
+	}
+	html, err := renderDiffReport(&DiffReport{Root: root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDiffBrowserPython(t, diffBrowserGroupedCheck, map[string]string{"groups": html})
+}
+
 func TestDiffReportIconSupport(t *testing.T) {
 	const legacy = `function materialIconLookupName(node) {
   return node.name;
@@ -133,6 +148,75 @@ def finish(message):
  browser.close();p.stop();print(message)
 `
 
+const diffBrowserGroupedCheck = diffBrowserPythonPrelude + `
+page=new_page();load(page,'groups')
+sizeColumns=['before','size','delta','percent'];items=['beforeItems','items','itemsDelta','itemsPercent']
+assert page.locator('.tree-column-group').all_text_contents()==['Size','Items']
+def aligned():
+ for label,keys in [('Size',sizeColumns),('Items',items)]:
+  visible=[page.locator('.tree-header-cell[data-column="'+key+'"]') for key in keys if page.locator('.tree-header-cell[data-column="'+key+'"]').count()]
+  group=page.locator('.tree-column-group').filter(has_text=label)
+  if not visible:assert group.count()==0;continue
+  box=group.bounding_box();first=visible[0].bounding_box();last=visible[-1].bounding_box()
+  assert abs(box['x']-first['x'])<1 and abs(box['x']+box['width']-last['x']-last['width'])<1
+aligned()
+for theme in ['dark','light']:
+ page.evaluate('(t)=>applyTheme(t,true)',theme);page.wait_for_timeout(400)
+ for name,cls,percent in [('increase','up','+50%'),('decrease','down','-50%'),('zero','muted','0%'),('new','up','New'),('empty','muted','0%'),('removed','down','-100%')]:
+  row=page.locator('#tree .row[title="/changes/'+name+'"]')
+  for key in ['delta','percent','itemsDelta','itemsPercent']:
+   cell=row.locator('[data-column="'+key+'"]');assert cls in cell.get_attribute('class')
+   if key in ['percent','itemsPercent']:assert cell.inner_text()==percent
+   if cls!='muted':
+    actual=cell.evaluate('(e)=>getComputedStyle(e).color')
+    expected=page.evaluate('(cls)=>{const e=document.createElement("span");e.style.color="var(--"+cls+")";document.body.append(e);const color=getComputedStyle(e).color;e.remove();return color}',cls)
+    assert actual==expected,(theme,name,key,actual,expected)
+    channels=[int(c.strip()) for c in actual.removeprefix('rgb(').removesuffix(')').split(',')]
+    assert (channels[0]>channels[1] if cls=='up' else channels[1]>channels[0]),(theme,name,key,actual)
+# Each nested label sorts independently with a metric-specific accessible name.
+for key in sizeColumns+items:
+ header=page.locator('.tree-header-cell[data-column="'+key+'"]')
+ button=header.locator('.tree-sort');assert ('Size ' if key in sizeColumns else 'Items ') in button.get_attribute('aria-label')
+ button.focus();button.press('Enter')
+ assert page.evaluate('DiffBrowser.snapshot().sortKey')==key
+ assert page.locator('.tree-header-cell[data-column="'+key+'"]').get_attribute('aria-sort') in ['ascending','descending']
+handle=page.locator('.tree-header-cell[data-column="beforeItems"] .tree-column-resizer')
+handle.focus();handle.press('ArrowRight');aligned()
+saved=page.evaluate('JSON.parse(localStorage.getItem("webdiskstat-diff-tree-column-widths")).beforeItems')
+assert saved>82
+def toggle(label,checked):
+ page.get_by_role('button',name='Column settings',exact=True).click()
+ page.locator('.tree-columns-menu').get_by_label(label,exact=True).set_checked(checked)
+ page.keyboard.press('Escape')
+toggle('Size before',False);aligned()
+for label in ['Items before','Items after','Items change','Items change %']:toggle(label,False)
+aligned();page.reload();page.locator('.tree-header').wait_for()
+assert page.locator('.tree-column-group').all_text_contents()==['Size']
+assert page.locator('.tree-header-cell[data-column="before"]').count()==0
+assert page.evaluate('JSON.parse(localStorage.getItem("webdiskstat-diff-tree-column-widths")).beforeItems')==saved
+toggle('Size before',True)
+for label in ['Items before','Items after','Items change','Items change %']:toggle(label,True)
+toggle('Files before',True);toggle('Files after',True)
+assert page.locator('.tree-header-cell[data-column="beforeFiles"]').count()==1
+assert page.locator('.tree-header-cell[data-column="files"]').count()==1
+toggle('Files before',False);toggle('Files after',False)
+out=os.environ.get('DIFF_BROWSER_GROUPED_SCREENSHOTS')
+if out:pathlib.Path(out).mkdir(parents=True,exist_ok=True)
+for theme in ['dark','light']:
+ page.evaluate('(t)=>applyTheme(t,true)',theme);page.wait_for_timeout(250)
+ for device,size in [('desktop',{'width':1440,'height':1100}),('mobile',{'width':390,'height':844})]:
+  page.set_viewport_size(size);page.locator('#diffBrowser').scroll_into_view_if_needed();aligned()
+  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+  header=page.locator('.tree-header').bounding_box();row=page.locator('#tree .row[data-id]').first.bounding_box()
+  assert row['y']>=header['y']+header['height']-1
+  if device=='mobile':
+   page.locator('#tree').evaluate('(e)=>e.scrollLeft=e.scrollWidth');aligned()
+   assert page.locator('#tree').evaluate('(e)=>e.scrollLeft')>0
+   page.locator('#tree').evaluate('(e)=>e.scrollLeft=0')
+  if out:page.screenshot(path=str(pathlib.Path(out)/(device+'-'+theme+'.png')))
+finish('PASS: Size/Items groups, signed changes and percent edge cases in both themes, all nested keyboard sorts, resize/group alignment, visibility and persistence, optional file columns, narrow horizontal scrolling without page overflow')
+`
+
 const diffBrowserParityCheck = diffBrowserPythonPrelude + `
 normal=new_page();diff=new_page();load(normal,'normal');load(diff,'diff');pages=[normal,diff]
 def snapshot(page):
@@ -144,7 +228,9 @@ def key_both(key):
   page.locator('#tree .row[data-id]').first.focus();page.keyboard.press(key)
  same()
 for page in pages:
- page.locator('#tree').evaluate('(e)=>{e.style.flex="0 0 432px";e.style.height="432px";e.style.minHeight="432px"}')
+ # Match usable row space, accounting for the diff's grouped header and its border.
+ height=432+page.locator('.tree-header').bounding_box()['height']-normal.locator('.tree-header').bounding_box()['height']
+ page.locator('#tree').evaluate('(e,height)=>{e.style.flex="0 0 "+height+"px";e.style.height=height+"px";e.style.minHeight=height+"px"}',height)
  page.evaluate('renderVisibleTreeRows(true)' if page==normal else 'DiffBrowser.refresh()')
  assert 0<page.locator('#tree .row[data-id]').count()<80
  assert page.locator('#tree .tree-body').evaluate('(e)=>e.offsetHeight')>100000
@@ -308,12 +394,12 @@ assert page.locator('html').get_attribute('data-theme')=='dark'
 assert page.locator('#themeToggle').get_attribute('aria-checked')=='false'
 for theme in ['dark','light']:
  page.evaluate('(t)=>applyTheme(t,true)',theme);reference.evaluate('(t)=>document.documentElement.dataset.theme=t',theme)
- page.wait_for_timeout(250);reference.wait_for_timeout(250)
+ page.wait_for_timeout(400);reference.wait_for_timeout(400)
  tokens=['--bg','--panel','--panel-2','--control','--line','--ink','--muted','--accent','--row-hover','--header']
  values=lambda tab:tab.evaluate('(tokens)=>Object.fromEntries(tokens.map(k=>[k,getComputedStyle(document.documentElement).getPropertyValue(k).trim()]))',tokens)
  assert values(page)==values(reference)
  shape=lambda tab:tab.locator('.theme-switcher-v2').evaluate('(e)=>({width:getComputedStyle(e).width,height:getComputedStyle(e).height,radius:getComputedStyle(e).borderRadius,background:getComputedStyle(e).backgroundColor})')
- assert shape(page)==shape(reference)
+ assert shape(page)==shape(reference),(shape(page),shape(reference))
  assert page.locator('.theme-switcher-v2').inner_html()==reference.locator('.theme-switcher-v2').inner_html()
  summary=page.locator('#summarySection').bounding_box();browser_box=page.locator('#diffBrowser').bounding_box();ranking=page.locator('#rankingsSection').bounding_box()
  assert summary['y']+summary['height']<=browser_box['y'] and browser_box['y']+browser_box['height']<=ranking['y']
@@ -330,7 +416,10 @@ assert page.evaluate('window.themeChanges.every(t=>t==="light")')
 for theme in ['dark','light']:
  page.evaluate('(t)=>applyTheme(t,true)',theme);page.goto((root/'encrypted.html').as_uri());page.locator('#passwordDialog').wait_for(state='visible')
  assert page.locator('html').get_attribute('data-theme')==theme and page.locator('#report').is_hidden()
- assert page.locator('#passwordDialog').evaluate('(e)=>getComputedStyle(e).backgroundColor')==page.locator('body').evaluate('(e)=>getComputedStyle(e).backgroundColor')
+ # Dialogs use the elevated panel surface, which need not equal the body canvas.
+ dialog_bg=page.locator('#passwordDialog').evaluate('(e)=>getComputedStyle(e).backgroundColor')
+ panel_bg=page.evaluate('()=>{const e=document.createElement("span");e.style.backgroundColor="var(--panel)";document.body.append(e);const color=getComputedStyle(e).backgroundColor;e.remove();return color}')
+ assert dialog_bg==panel_bg,(theme,dialog_bg,panel_bg)
  page.get_by_role('button',name='Cancel',exact=True).click();page.locator('#retry').click();page.locator('#password').fill('theme-password');page.get_by_role('button',name='Unlock',exact=True).click()
  page.locator('#report').wait_for(state='visible',timeout=60000);assert page.locator('html').get_attribute('data-theme')==theme
 blocked=browser.new_context();blocked.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw new DOMException('Storage blocked','SecurityError')}})")

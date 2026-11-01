@@ -21,9 +21,12 @@
       :root {
         --paper: var(--panel);
         --blue: var(--accent);
-        --up: var(--danger);
+        --up: var(--danger, #ff7b72);
         --down: var(--accent-2);
         --soft: var(--row-hover);
+      }
+      html[data-theme="light"] {
+        --up: var(--danger, #cf222e);
       }
       * {
         box-sizing: border-box;
@@ -533,7 +536,10 @@
       #diffBrowser .search-result { width: 100%; }
       #diffBrowser .tree { height: min(62vh,620px); min-height: 320px; overflow: auto; position: relative; scrollbar-color: var(--muted) var(--panel-2); font-size: 12px; }
       #diffBrowser .tree-body { position: relative; }
-      #diffBrowser .tree-header { z-index: 6; }
+      #diffBrowser .tree-header { z-index: 6; background: var(--header, var(--panel-2)); }
+      #diffBrowser .diff-grouped-header { grid-template-rows: 28px 36px; row-gap: 0; }
+      #diffBrowser .diff-grouped-header .tree-header-cell { height: 100%; }
+      #diffBrowser .tree-column-group { align-self: stretch; display: flex; align-items: center; justify-content: center; color: var(--ink); border-bottom: 1px solid var(--line); }
       #diffBrowser .tree-columns-menu { z-index: 10; max-height: 290px; overflow: auto; }
       #diffBrowser .tree-column-option input { width: 14px; min-height: 14px; height: 14px; margin: 0; }
       #diffBrowser .tree-column-option { color: var(--ink); }
