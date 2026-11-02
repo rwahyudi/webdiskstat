@@ -80,10 +80,16 @@ func TestDiffReportBrowserParity(t *testing.T) {
 func TestDiffReportBrowserGroupedChanges(t *testing.T) {
 	root := &DiffNode{Name: "changes", Path: "/changes", Type: "dir", Status: "grown"}
 	for _, sample := range []struct {
-		name          string
-		before, after int64
-	}{{"increase", 10, 15}, {"decrease", 10, 5}, {"zero", 10, 10}, {"new", 0, 5}, {"empty", 0, 0}, {"removed", 10, 0}} {
-		root.Children = append(root.Children, &DiffNode{Name: sample.name, Path: root.Path + "/" + sample.name, Type: "dir", Before: sample.before, After: sample.after, Delta: sample.after - sample.before, BeforeItems: int(sample.before), AfterItems: int(sample.after), Status: "grown"})
+		name                                             string
+		before, after                                    int64
+		beforeFiles, afterFiles, beforeItems, afterItems int
+		beforeType, afterType                            string
+	}{{"increase", 10, 15, 2, 3, 5, 8, "dir", "dir"}, {"decrease", 10, 5, 4, 2, 7, 4, "dir", "dir"}, {"zero", 10, 10, 2, 2, 5, 5, "dir", "dir"}, {"new", 0, 5, 0, 2, 0, 4, "", "dir"}, {"empty", 0, 0, 0, 0, 0, 0, "dir", "dir"}, {"removed", 10, 0, 3, 0, 5, 0, "dir", ""}, {"typechange", 10, 10, 2, 3, 5, 6, "dir", "file"}} {
+		typ := sample.afterType
+		if typ == "" {
+			typ = sample.beforeType
+		}
+		root.Children = append(root.Children, &DiffNode{Name: sample.name, Path: root.Path + "/" + sample.name, Type: typ, Before: sample.before, After: sample.after, Delta: sample.after - sample.before, BeforeFiles: sample.beforeFiles, AfterFiles: sample.afterFiles, BeforeItems: sample.beforeItems, AfterItems: sample.afterItems, BeforeType: sample.beforeType, AfterType: sample.afterType, Status: "grown"})
 	}
 	html, err := renderDiffReport(&DiffReport{Root: root}, nil)
 	if err != nil {
@@ -159,36 +165,44 @@ def finish(message):
 
 const diffBrowserGroupedCheck = diffBrowserPythonPrelude + `
 page=new_page();load(page,'groups')
-sizeColumns=['before','size','delta','percent'];items=['beforeItems','items','itemsDelta','itemsPercent']
-assert page.locator('.tree-column-group').all_text_contents()==['Size','Items']
+sizeColumns=['before','size','delta','percent'];items=['beforeItems','items','itemsDelta','itemsPercent'];files=['beforeFiles','files','filesDelta','filesPercent'];directories=['beforeDirectories','directories','directoriesDelta','directoriesPercent']
+assert page.locator('.tree-column-group').all_text_contents()==['Size','Files','Directories','Items']
 def aligned():
- for label,keys in [('Size',sizeColumns),('Items',items)]:
-  visible=[page.locator('.tree-header-cell[data-column="'+key+'"]') for key in keys if page.locator('.tree-header-cell[data-column="'+key+'"]').count()]
-  group=page.locator('.tree-column-group').filter(has_text=label)
-  if not visible:assert group.count()==0;continue
-  box=group.bounding_box();first=visible[0].bounding_box();last=visible[-1].bounding_box()
-  assert abs(box['x']-first['x'])<1 and abs(box['x']+box['width']-last['x']-last['width'])<1
+  for label,keys in [('Size',sizeColumns),('Files',files),('Directories',directories),('Items',items)]:
+   visible=[page.locator('.tree-header-cell[data-column="'+key+'"]') for key in keys if page.locator('.tree-header-cell[data-column="'+key+'"]').count()]
+   group=page.locator('.tree-column-group').filter(has_text=label)
+   if not visible:assert group.count()==0;continue
+   box=group.bounding_box();first=visible[0].bounding_box();last=visible[-1].bounding_box()
+   assert abs(box['x']-first['x'])<1 and abs(box['x']+box['width']-last['x']-last['width'])<1
 aligned()
 for theme in ['dark','light']:
  page.evaluate('(t)=>applyTheme(t,true)',theme);page.wait_for_timeout(400)
- for name,cls,percent in [('increase','up','+50%'),('decrease','down','-50%'),('zero','muted','0%'),('new','up','New'),('empty','muted','0%'),('removed','down','-100%')]:
+ for name,cls,percent,itempercent,filepercent,dirpercent in [('increase','up','+50%','+60%','+50%','+66.7%'),('decrease','down','-50%','-42.9%','-50%','-33.3%'),('zero','muted','0%','0%','0%','0%'),('new','up','New','New','New','New'),('empty','muted','0%','0%','0%','0%'),('removed','down','-100%','-100%','-100%','-100%'),('typechange','up','0%','+20%','+50%','0%')]:
   row=page.locator('#tree .row[title="/changes/'+name+'"]')
-  for key in ['delta','percent','itemsDelta','itemsPercent']:
-   cell=row.locator('[data-column="'+key+'"]');assert cls in cell.get_attribute('class')
-   if key in ['percent','itemsPercent']:assert cell.inner_text()==percent
-   if cls!='muted':
+  for key in ['delta','percent','itemsDelta','itemsPercent','filesDelta','filesPercent','directoriesDelta','directoriesPercent']:
+   cell=row.locator('[data-column="'+key+'"]')
+   countdiff={'itemsDelta':{'increase':3,'decrease':-3,'zero':0,'new':4,'empty':0,'removed':-5,'typechange':1},'itemsPercent':{'increase':3,'decrease':-3,'zero':0,'new':4,'empty':0,'removed':-5,'typechange':1},'filesDelta':{'increase':1,'decrease':-2,'zero':0,'new':2,'empty':0,'removed':-3,'typechange':1},'filesPercent':{'increase':1,'decrease':-2,'zero':0,'new':2,'empty':0,'removed':-3,'typechange':1},'directoriesDelta':{'increase':2,'decrease':-1,'zero':0,'new':2,'empty':0,'removed':-2,'typechange':0},'directoriesPercent':{'increase':2,'decrease':-1,'zero':0,'new':2,'empty':0,'removed':-2,'typechange':0}}
+   diff=countdiff.get(key,{'increase':5,'decrease':-5,'zero':0,'new':5,'empty':0,'removed':-10,'typechange':0}).get(name)
+   expectedclass='up' if diff>0 else 'down' if diff<0 else 'muted'
+   assert expectedclass in cell.get_attribute('class'),(name,key,expectedclass,cell.get_attribute('class'))
+   expected={'percent':percent,'itemsPercent':itempercent,'filesPercent':filepercent,'directoriesPercent':dirpercent}
+   if key in expected:assert cell.inner_text()==expected[key],(name,key,cell.inner_text(),expected[key])
+   if expectedclass!='muted':
     actual=cell.evaluate('(e)=>getComputedStyle(e).color')
-    expected=page.evaluate('(cls)=>{const e=document.createElement("span");e.style.color="var(--"+cls+")";document.body.append(e);const color=getComputedStyle(e).color;e.remove();return color}',cls)
-    assert actual==expected,(theme,name,key,actual,expected)
-    channels=[int(c.strip()) for c in actual.removeprefix('rgb(').removesuffix(')').split(',')]
-    assert (channels[0]>channels[1] if cls=='up' else channels[1]>channels[0]),(theme,name,key,actual)
-# Each nested label sorts independently with a metric-specific accessible name.
-for key in sizeColumns+items:
- header=page.locator('.tree-header-cell[data-column="'+key+'"]')
- button=header.locator('.tree-sort');assert ('Size ' if key in sizeColumns else 'Items ') in button.get_attribute('aria-label')
- button.focus();button.press('Enter')
- assert page.evaluate('DiffBrowser.snapshot().sortKey')==key
- assert page.locator('.tree-header-cell[data-column="'+key+'"]').get_attribute('aria-sort') in ['ascending','descending']
+    color=page.evaluate('(cls)=>{const e=document.createElement("span");e.style.color="var(--"+cls+")";document.body.append(e);const c=getComputedStyle(e).color;e.remove();return c}',expectedclass)
+    assert actual==color,(theme,name,key,actual,color)
+  assert row.locator('[data-column="beforeFiles"]').inner_text()==str({'increase':2,'decrease':4,'zero':2,'new':0,'empty':0,'removed':3,'typechange':2}[name])
+  assert row.locator('[data-column="beforeDirectories"]').inner_text()==str({'increase':3,'decrease':3,'zero':3,'new':0,'empty':0,'removed':2,'typechange':3}[name])
+ # Each metric sorts by displayed numeric value and exposes group-specific labels.
+ for key in sizeColumns+files+directories+items:
+  header=page.locator('.tree-header-cell[data-column="'+key+'"]')
+  group='Size' if key in sizeColumns else 'Files' if key in files else 'Directories' if key in directories else 'Items'
+  button=header.locator('.tree-sort');assert group+' ' in button.get_attribute('aria-label')
+  button.focus();button.press('Enter')
+  assert page.evaluate('DiffBrowser.snapshot().sortKey')==key
+  assert header.get_attribute('aria-sort') in ['ascending','descending']
+  values=page.locator('#tree .row[data-id]').evaluate_all('(rows,key)=>rows.map(r=>{const s=r.querySelector("[data-column=\\\""+key+"\\\"]").textContent;if(s==="New")return Infinity;const n=s.replace("−","-");return key.endsWith("Percent")||key==="percent"?parseFloat(n):Number(n.replace(/[^0-9-]/g,""))})',key)
+  assert values==sorted(values,reverse=page.evaluate('DiffBrowser.snapshot().sortDir')=='desc'),(key,values,page.evaluate('DiffBrowser.snapshot()'),page.locator('#tree .row[data-id]').evaluate_all('(rows)=>rows.map(r=>r.title)'))
 handle=page.locator('.tree-header-cell[data-column="beforeItems"] .tree-column-resizer')
 handle.focus();handle.press('ArrowRight');aligned()
 saved=page.evaluate('JSON.parse(localStorage.getItem("webdiskstat-diff-tree-column-widths")).beforeItems')
@@ -200,7 +214,7 @@ def toggle(label,checked):
 toggle('Size before',False);aligned()
 for label in ['Items before','Items after','Items change','Items change %']:toggle(label,False)
 aligned();page.reload();page.locator('.tree-header').wait_for()
-assert page.locator('.tree-column-group').all_text_contents()==['Size']
+assert page.locator('.tree-column-group').all_text_contents()==['Size','Files','Directories']
 assert page.locator('.tree-header-cell[data-column="before"]').count()==0
 assert page.evaluate('JSON.parse(localStorage.getItem("webdiskstat-diff-tree-column-widths")).beforeItems')==saved
 toggle('Size before',True)
@@ -303,7 +317,8 @@ for page in pages:
  widthkey='webdiskstat-diff-tree-column-widths' if page==diff else 'webdiskstat-tree-column-widths'
  saved=page.evaluate('(key)=>JSON.parse(localStorage.getItem(key)).modified',widthkey);assert saved>0
  # Pointer resizing is the same shared implementation as keyboard resizing.
- namehandle=page.locator('.tree-header-cell[data-column="name"] .tree-column-resizer');bounds=namehandle.bounding_box()
+ page.locator('#tree').evaluate('(e)=>e.scrollLeft=0')
+ namehandle=page.locator('.tree-header-cell[data-column="name"] .tree-column-resizer');namehandle.scroll_into_view_if_needed();bounds=namehandle.bounding_box()
  page.mouse.move(bounds['x']+bounds['width']/2,bounds['y']+bounds['height']/2);page.mouse.down();page.mouse.move(bounds['x']+bounds['width']/2+40,bounds['y']+bounds['height']/2,steps=4);page.mouse.up()
  assert page.evaluate('(key)=>JSON.parse(localStorage.getItem(key)).name',widthkey)>=300
  page.reload();page.locator('.tree-header-cell[data-column="modified"]').wait_for();assert page.evaluate('(key)=>JSON.parse(localStorage.getItem(key)).modified',widthkey)==saved

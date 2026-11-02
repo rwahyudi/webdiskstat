@@ -42,6 +42,54 @@ window.DiffBrowser = (() => {
     minWidth: 74,
     numeric: true
   }, {
+    key: 'beforeFiles',
+    group: 'Files',
+    label: 'Before',
+    minWidth: 82,
+    numeric: true
+  }, {
+    key: 'files',
+    group: 'Files',
+    label: 'After',
+    minWidth: 82,
+    numeric: true
+  }, {
+    key: 'filesDelta',
+    group: 'Files',
+    label: 'Change',
+    minWidth: 90,
+    numeric: true
+  }, {
+    key: 'filesPercent',
+    group: 'Files',
+    label: 'Change %',
+    minWidth: 74,
+    numeric: true
+  }, {
+    key: 'beforeDirectories',
+    group: 'Directories',
+    label: 'Before',
+    minWidth: 82,
+    numeric: true
+  }, {
+    key: 'directories',
+    group: 'Directories',
+    label: 'After',
+    minWidth: 82,
+    numeric: true
+  }, {
+    key: 'directoriesDelta',
+    group: 'Directories',
+    label: 'Change',
+    minWidth: 90,
+    numeric: true
+  }, {
+    key: 'directoriesPercent',
+    group: 'Directories',
+    label: 'Change %',
+    minWidth: 74,
+    numeric: true
+  }, {
     key: 'beforeItems',
     group: 'Items',
     label: 'Before',
@@ -66,16 +114,6 @@ window.DiffBrowser = (() => {
     minWidth: 74,
     numeric: true
   }, {
-    key: 'beforeFiles',
-    label: 'Files before',
-    minWidth: 82,
-    numeric: true
-  }, {
-    key: 'files',
-    label: 'Files after',
-    minWidth: 82,
-    numeric: true
-  }, {
     key: 'modified',
     label: 'Modified after',
     minWidth: 140
@@ -98,8 +136,14 @@ window.DiffBrowser = (() => {
     items: true,
     itemsDelta: true,
     itemsPercent: true,
-    beforeFiles: false,
-    files: false,
+    beforeFiles: true,
+    files: true,
+    filesDelta: true,
+    filesPercent: true,
+    beforeDirectories: true,
+    directories: true,
+    directoriesDelta: true,
+    directoriesPercent: true,
     modified: false,
     status: true
   };
@@ -162,6 +206,17 @@ window.DiffBrowser = (() => {
         if (state.sortKey === 'percent') return n.before ? n.delta / n.before : n.after ? Infinity : 0;
         if (state.sortKey === 'itemsPercent') return n.beforeItems ? (n.afterItems - n.beforeItems) / n.beforeItems : n.afterItems ? Infinity : 0;
         if (state.sortKey === 'itemsDelta') return n.afterItems - n.beforeItems;
+        if (state.sortKey === 'filesDelta') return n.afterFiles - n.beforeFiles;
+        if (state.sortKey === 'filesPercent') return n.beforeFiles ? (n.afterFiles - n.beforeFiles) / n.beforeFiles : n.afterFiles ? Infinity : 0;
+        if (state.sortKey === 'directoriesDelta') return n.afterDirectories - n.beforeDirectories;
+        if (state.sortKey === 'directoriesPercent') return n.beforeDirectories ? (n.afterDirectories - n.beforeDirectories) / n.beforeDirectories : n.afterDirectories ? Infinity : 0;
+        if (state.sortKey === 'before') return n.before;
+        if (state.sortKey === 'beforeItems') return n.beforeItems;
+        if (state.sortKey === 'beforeFiles') return n.beforeFiles;
+        if (state.sortKey === 'files') return n.afterFiles;
+        if (state.sortKey === 'beforeDirectories') return n.beforeDirectories;
+        if (state.sortKey === 'directories') return n.afterDirectories;
+        if (state.sortKey === 'items') return n.afterItems;
         return n[state.sortKey];
       };
       const av = value(a),
@@ -286,6 +341,24 @@ window.DiffBrowser = (() => {
           case 'beforeFiles':
             cell.textContent = formatCount(child.beforeFiles);
             break;
+          case 'filesDelta':
+          case 'filesPercent':
+          case 'directoriesDelta':
+          case 'directoriesPercent': {
+            const directories = column.key.startsWith('directories');
+            const before = directories ? child.beforeDirectories : child.beforeFiles;
+            const after = directories ? child.afterDirectories : child.afterFiles;
+            const delta = after - before;
+            cell.textContent = column.key.endsWith('Percent') ? percentage({before, after, delta}) : signed(delta);
+            cell.classList.add(delta > 0 ? 'up' : delta < 0 ? 'down' : 'muted');
+            break;
+          }
+          case 'directories':
+            cell.textContent = formatCount(child.afterDirectories);
+            break;
+          case 'beforeDirectories':
+            cell.textContent = formatCount(child.beforeDirectories);
+            break;
           case 'items':
             cell.textContent = child.afterItems === undefined ? '—' : formatCount(child.afterItems);
             break;
@@ -324,7 +397,7 @@ window.DiffBrowser = (() => {
     header.className = 'tree-header diff-grouped-header';
     const columnsMenu = makeTreeColumnsMenu();
     const columns = visibleTreeColumns();
-    for (const group of ['Size', 'Items']) {
+    for (const group of ['Size', 'Files', 'Directories', 'Items']) {
       const indexes = columns.flatMap((column, index) => column.group === group ? [index] : []);
       if (!indexes.length) continue;
       const heading = document.createElement('div');
@@ -428,6 +501,9 @@ window.DiffBrowser = (() => {
       node.size = node.after;
       node.files = node.afterFiles;
       node.items = node.afterItems;
+      // Items counts descendants, excluding the directory itself.
+      node.beforeDirectories = Math.max(0, node.beforeItems - node.beforeFiles);
+      node.afterDirectories = Math.max(0, node.afterItems - node.afterFiles);
       node.mtime = node.afterMtime;
       byPath.set(node.path, node);
       for (const child of node.children || []) stack.push([child, depth + 1]);
