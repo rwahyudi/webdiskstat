@@ -167,6 +167,14 @@ const diffBrowserGroupedCheck = diffBrowserPythonPrelude + `
 page=new_page();load(page,'groups')
 sizeColumns=['before','size','delta','percent'];items=['beforeItems','items','itemsDelta','itemsPercent'];files=['beforeFiles','files','filesDelta','filesPercent'];directories=['beforeDirectories','directories','directoriesDelta','directoriesPercent']
 assert page.locator('.tree-column-group').all_text_contents()==['Size','Files','Directories','Items']
+for key in ['percent','filesPercent','directoriesPercent','itemsPercent','modified']:
+ assert page.locator('.tree-header-cell[data-column="'+key+'"]').count()==0,key
+page.get_by_role('button',name='Column settings',exact=True).click()
+for label in ['Size change %','Files change %','Directories change %','Items change %','Modified after']:
+ assert not page.locator('.tree-columns-menu').get_by_label(label,exact=True).is_checked(),label
+for label in ['Size change %','Files change %','Directories change %','Items change %']:
+ page.locator('.tree-columns-menu').get_by_label(label,exact=True).check()
+page.keyboard.press('Escape')
 def aligned():
   for label,keys in [('Size',sizeColumns),('Files',files),('Directories',directories),('Items',items)]:
    visible=[page.locator('.tree-header-cell[data-column="'+key+'"]') for key in keys if page.locator('.tree-header-cell[data-column="'+key+'"]').count()]
@@ -334,7 +342,7 @@ diff.locator('#reset').click()
 assert diff.locator('#pageSize,#previous,#next').count()==0
 assert diff.locator('.tree-header-cell[data-column="before"]').count()==1
 assert diff.locator('.tree-header-cell[data-column="delta"]').count()==1
-assert diff.locator('.tree-header-cell[data-column="percent"]').count()==1
+assert diff.locator('.tree-header-cell[data-column="percent"]').count()==0
 out=os.environ.get('DIFF_BROWSER_PARITY_SCREENSHOTS')
 if out:pathlib.Path(out).mkdir(parents=True,exist_ok=True)
 for theme in ['dark','light']:
