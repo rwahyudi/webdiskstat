@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 //go:embed assets/diff-report.html
@@ -105,14 +106,19 @@ func renderDiffReport(report *DiffReport, password *string) (string, error) {
 		return "", err
 	}
 	footerContent := diffReportFooterContent(password != nil)
-	return strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl,
+	now := time.Now().Local()
+	generatedISO := now.Format(time.RFC3339)
+	generatedDisplay := now.Format("2006-01-02 15:04:05 MST")
+	rendered := strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl,
 		"/* NORMAL_BROWSER_CSS */", browserCSS,
 		"/* DIFF_BROWSER_RUNTIME */", strings.Replace(diffBrowserRuntime, "/* NORMAL_BROWSER_FUNCTIONS */", browserJS, 1),
 		"/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", encoded, "<!-- DIFF_FOOTER_CONTENT -->", footerContent,
-		"DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate), nil
+		"DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate)
+	rendered = replaceGeneratedMetadata(rendered, generatedISO, generatedDisplay)
+	return fillReportSize(rendered), nil
 }
 
 func diffReportFooterContent(encrypted bool) string {
 	projectLink := `<a class="footer-project" href="https://github.com/rwahyudi/webdiskstat" target="_blank" rel="noopener noreferrer" aria-label="webdiskstat version ` + escapeHTML(version) + ` on GitHub">webdiskstat ` + escapeHTML(version) + `</a>`
-	return `<div class="footer-leading">` + securityStatusHTML(encrypted) + projectLink + `</div><span class="footer-note">Self-contained offline report · No network requests · Percent change uses the before size; “New” means no baseline.</span>`
+	return securityStatusHTML(encrypted) + projectLink + `<span class="footer-meta"><time class="generated" datetime="pending">Generated pending</time> · HTML file: pending</span>`
 }

@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 func diffReportFixture() *DiffReport {
@@ -109,12 +110,18 @@ func TestDiffReportHeaderHelpAndFooterSecurityState(t *testing.T) {
 		t.Fatal("help button must be in the page header")
 	}
 	if !strings.Contains(plain, `class="report-security plain"`) || !strings.Contains(plain, `>Data not encrypted</span>`) ||
-		!strings.Contains(plain, `webdiskstat version `+escapeHTML(version)+` on GitHub`) || !strings.Contains(plain, `Self-contained offline report`) {
+		!strings.Contains(plain, `webdiskstat version `+escapeHTML(version)+` on GitHub`) || !strings.Contains(plain, `HTML file: `) || !strings.Contains(plain, `Generated `) {
 		t.Fatal("plain report footer is missing encryption disclosure or project information")
+	}
+	for _, removed := range []string{"selectionInfo", "Double-click a directory to open it. Unchanged ancestors", "Self-contained offline report", "No network requests"} {
+		if strings.Contains(plain, removed) {
+			t.Errorf("removed diff-report copy remains: %q", removed)
+		}
 	}
 	if strings.Contains(plain, `<!-- DIFF_FOOTER_CONTENT -->`) {
 		t.Fatal("footer placeholder was not rendered")
 	}
+	assertDiffFooterMetadata(t, plain)
 
 	password := "footer-test-password"
 	encrypted, err := renderDiffReport(diffReportFixture(), &password)
@@ -124,6 +131,29 @@ func TestDiffReportHeaderHelpAndFooterSecurityState(t *testing.T) {
 	if !strings.Contains(encrypted, `class="report-security encrypted"`) || !strings.Contains(encrypted, `>Data encrypted</span>`) ||
 		strings.Contains(encrypted, `Data not encrypted`) || !strings.Contains(encrypted, `webdiskstat version `+escapeHTML(version)+` on GitHub`) {
 		t.Fatal("encrypted report footer does not correctly disclose encryption and project information")
+	}
+	assertDiffFooterMetadata(t, encrypted)
+}
+
+func assertDiffFooterMetadata(t *testing.T, document string) {
+	t.Helper()
+	timeMatch := regexp.MustCompile(`<time class="generated" datetime="([^"]+)">Generated ([^<]+)</time>`).FindStringSubmatch(document)
+	if len(timeMatch) != 3 {
+		t.Fatal("footer is missing generated timestamp")
+	}
+	if _, err := time.Parse(time.RFC3339, timeMatch[1]); err != nil {
+		t.Fatalf("invalid generated timestamp %q: %v", timeMatch[1], err)
+	}
+	if strings.Contains(timeMatch[2], "pending") {
+		t.Fatalf("footer contains pending timestamp %q", timeMatch[2])
+	}
+	sizeMatch := regexp.MustCompile(`HTML file: ([^<]+)`).FindStringSubmatch(document)
+	if len(sizeMatch) != 2 {
+		t.Fatal("footer is missing HTML file size")
+	}
+	want := formatReportFileSize(len([]byte(document)))
+	if "HTML file: "+sizeMatch[1] != want {
+		t.Fatalf("footer file size = %q, want exact document size %q", sizeMatch[1], want)
 	}
 }
 

@@ -348,7 +348,7 @@ if out:pathlib.Path(out).mkdir(parents=True,exist_ok=True)
 for theme in ['dark','light']:
  diff.evaluate('(theme)=>applyTheme(theme,true)',theme);normal.evaluate('(theme)=>document.documentElement.dataset.theme=theme',theme);diff.wait_for_timeout(250);normal.wait_for_timeout(250)
  for device,size in [('desktop',{'width':1440,'height':1100}),('mobile',{'width':390,'height':844})]:
-  diff.set_viewport_size(size);diff.evaluate('window.scrollTo(0,0)')
+  diff.set_viewport_size(size);normal.set_viewport_size(size);diff.evaluate('window.scrollTo(0,0)')
   if out:diff.screenshot(path=str(pathlib.Path(out)/('summary-'+device+'-'+theme+'.png')))
   diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
   assert diff.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
@@ -370,6 +370,12 @@ for theme in ['dark','light']:
     normal.goto((root/'normal-encrypted.html').as_uri());normal.locator('#reportPasswordDialog').wait_for(state='visible');normal.locator('#reportPasswordInput').fill('theme-password');normal.locator('#reportPasswordDialog button[type="submit"]').click();normal.locator('#tree .row[data-id]').first.wait_for(timeout=60000)
    badge_style=lambda tab:tab.locator('footer .report-security').evaluate('(e)=>{const s=getComputedStyle(e);return [s.color,s.backgroundColor,s.borderTopColor]}')
    assert badge_style(diff)==badge_style(normal),(theme,state,badge_style(diff),badge_style(normal))
+   for selector in ['.footer-project','.footer-meta']:
+    style=lambda tab,sel:tab.locator('footer '+sel).evaluate('(e)=>{const s=getComputedStyle(e);return [s.display,s.fontSize,s.color,s.flex,s.order,s.minWidth,s.whiteSpace,s.textAlign,s.flexWrap,s.justifyContent,s.gap,s.lineHeight]}',selector)
+    assert style(diff,selector)==style(normal,selector),(theme,state,selector,style(diff,selector),style(normal,selector))
+    box=lambda tab,sel:tab.locator('footer '+sel).bounding_box()
+    a,b=box(diff,selector),box(normal,selector)
+    assert a['height']>0 and b['height']>0,(theme,state,selector,a,b)
    if state=='encrypted':
     diff.goto((root/'diff.html').as_uri());diff.locator('#report').wait_for(state='visible');load(normal,'normal')
   diff.evaluate('window.scrollTo(0,0)')

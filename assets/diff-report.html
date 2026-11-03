@@ -429,23 +429,17 @@
         color: var(--muted);
         font-size: 16px;
       }
-      .footer-leading {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 10px 14px;
-        min-width: 0;
-      }
-      .footer-note {
-        flex: 1 1 320px;
-        min-width: 0;
-        text-align: right;
-      }
       .footer-project {
+        flex: 0 1 auto;
+        min-width: 0;
         color: var(--muted);
+        font-size: 11px;
+        text-align: center;
+        line-height: normal;
         text-decoration: none;
         white-space: nowrap;
       }
+      .footer-meta { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 12px; min-width: 0; color: var(--ink); line-height: normal; }
       .footer-project:hover {
         color: var(--ink);
         text-decoration: underline;
@@ -608,10 +602,7 @@
         footer {
           align-items: flex-start;
         }
-        .footer-note {
-          flex-basis: 100%;
-          text-align: left;
-        }
+        .footer-project { order: 3; flex: 1 0 100%; white-space: normal; }
         td:first-child {
           max-width: 280px;
         }
@@ -843,10 +834,8 @@
               <button id="csv" type="button">Export all changes · CSV</button>
             </div>
           </div>
-          <div id="selectionInfo" class="browser-selection" aria-live="polite"></div>
           <div id="tree" class="tree" role="region" tabindex="0" aria-label="File and folder table. Focus this region and use left or right arrow to scroll horizontally and see all columns."></div>
           <div id="range" class="browser-range" role="status" aria-live="polite"></div>
-          <div class="notice">Double-click a directory to open it. Unchanged ancestors remain for navigation, including net-zero directories. Search suggests changed paths; status filters retain their ancestors. CSV always includes all actual changes.</div>
           <dialog id="browserHelp" aria-labelledby="browserHelpTitle">
             <div class="section-head"><h2 id="browserHelpTitle">Keyboard shortcuts</h2><button id="browserHelpClose" type="button" aria-label="Close help">Close</button></div>
             <div class="browser-help-grid">

@@ -239,16 +239,7 @@ window.DiffBrowser = (() => {
     normalActivateSearchResult(index);
   }
   function renderDetails() {
-    const node = state.selected || state.current;
-    if (!node) return;
-    const info = document.getElementById('selectionInfo');
-    info.replaceChildren();
-    const path = document.createElement('span');
-    path.textContent = node.path || node.name;
-    path.title = path.textContent;
-    const value = document.createElement('strong');
-    value.textContent = formatBytes(node.after) + ' after · ' + bytes(node.delta, true) + ' change';
-    info.append(path, value);
+    // Selection is conveyed directly by the accessible active tree row.
   }
   function setSelected(node) {
     if (!node) return;
