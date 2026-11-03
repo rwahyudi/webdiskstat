@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -249,65 +250,29 @@ func runDiffWithProgress(opts cliOptions, stdin io.Reader, stdout, stderr io.Wri
 		fmt.Fprintln(stderr, "webdiskstat: --diff requires exactly two input paths")
 		return 2
 	}
-	stdinUsed := false
-	load := func(source, label string) (*Node, diffMetadata, error) {
-		progress.Update("Reading " + label + " snapshot")
-		if source == "-" {
-			if stdinUsed {
-				return nil, diffMetadata{}, fmt.Errorf("stdin may be used only once")
-			}
-			stdinUsed = true
-		}
-		raw, err := readJSON(source, stdin)
-		if err != nil {
-			return nil, diffMetadata{}, fmt.Errorf("%s (%s): %w", label, source, err)
-		}
-		root, meta, err := normalizeGDUForDiff(raw)
-		if err != nil {
-			return nil, diffMetadata{}, fmt.Errorf("%s (%s): %w", label, source, err)
-		}
-		return root, meta, nil
-	}
-	before, bMeta, err := load(opts.inputs[0], "baseline")
+	progress.Update("Loading and comparing snapshots")
+	report, err := buildCompactDiffReport(opts.inputs[0], opts.inputs[1], stdin, opts.complete)
 	if err != nil {
 		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
-	after, aMeta, err := load(opts.inputs[1], "current")
-	if err != nil {
-		progress.Close()
-		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
-		return 1
-	}
-	progress.Update("Comparing snapshots")
-	report, err := buildDiffReportWithOptions(before, after, opts.inputs[0], opts.inputs[1], diffOptions{Complete: opts.complete})
-	if err != nil {
-		progress.Close()
-		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
-		return 1
-	}
-	report.Before.CapturedAt = bMeta.capturedAt
-	report.After.CapturedAt = aMeta.capturedAt
 	var password *string
 	if opts.hasPass {
 		password = &opts.password
 	}
-	progress.Update("Building changes report")
-	page, err := renderDiffReport(report, password)
+	progress.Update("Rendering and writing changes report")
+	// Snapshot rows and the merge index are no longer reachable here. Reclaim
+	// that completed phase before serialization allocates its short-lived nodes;
+	// otherwise the old heap-growth target can exceed a container's memory cap.
+	runtime.GC()
+	outputPath, outputBytes, err := writeCompactDiffReport(opts.output, stdout, report, password)
 	if err != nil {
 		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
-	progress.Update("Writing report")
-	outputPath, err := writeReport(page, opts.output, stdout)
-	if err != nil {
-		progress.Close()
-		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
-		return 1
-	}
-	if !progress.Finish(cliSummary{Path: outputPath, Bytes: len(page), Elapsed: time.Since(progress.started), Files: report.After.Files, Dirs: report.After.Directories, Diff: report.StatusCounts, Complete: report.Complete, Encrypted: opts.hasPass}) && opts.output != "-" {
+	if !progress.Finish(cliSummary{Path: outputPath, Bytes: int(outputBytes), Elapsed: time.Since(progress.started), Files: report.After.Files, Dirs: report.After.Directories, Diff: report.StatusCounts, Complete: report.Complete, Encrypted: opts.hasPass}) && opts.output != "-" {
 		fmt.Fprintf(stderr, "Wrote %s\n", outputPath)
 	}
 	return 0

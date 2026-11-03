@@ -114,7 +114,13 @@ The summary and largest-changes sections each span the report width. Largest cha
 
 This compares recorded usage and metadata, not file contents. Renames appear as a removal and an addition; unchanged file size and metadata do not prove identical contents. For meaningful results, capture both snapshots with consistent scanner settings and coverage.
 
-Comparison currently holds snapshots in memory. Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). It is not intended for 100-million-file scans; memory requirements can be substantial even below the limits.
+Comparison uses compact in-memory snapshot records and numeric references rather than retaining two generic JSON trees plus a separate complete diff tree. The comparison JSON is compressed incrementally and the HTML is streamed to a staged output file. This is not a disk-backed comparison database: memory still grows with the number of entries and the lengths of their paths. Complete mode retains every path from either snapshot without changing change counts, rankings, or CSV semantics.
+
+Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). Native GDU export arrays are parsed incrementally, with additional limits on JSON tokens, nesting, metadata, and retained path bytes. Other supported JSON shapes use a compatibility path limited to 16 MiB after decompression and bounded normalized path expansion. Temporary compressed data uses `TMPDIR`; staged file output is created beside the destination and replaces it only after generation succeeds. New comparison reports are private (`0600`); replacing an existing regular report preserves its permissions. It is not intended for 100-million-file scans.
+
+Encrypted comparisons preserve the existing authenticated-encryption format and accept up to 64 MiB of compressed comparison data. Above that limit, generation fails explicitly rather than silently removing encryption or paths. Large complete reports can still use substantial memory when opened in a browser; terminal-generator memory and browser memory are separate concerns.
+
+Measured complete-mode validation on the October/November 2026 dataset (1,860,935 and 1,871,861 input entries) completed in 27.9 seconds with approximately 1.85 GiB peak RSS under a hard 2 GiB limit and no swap. No `GOMEMLIMIT` or `GOGC` override was used; one collection at the comparison-to-rendering handoff releases completed snapshot/index work. The 35.45 MiB report was checked against an independently extracted union of all 1,874,376 input paths, including 1,857,761 unchanged paths. The previous implementation hit a 3,328 MiB limit during complete-mode rendering. These are dataset/environment measurements, not a universal memory guarantee.
 
 ## Options
 
