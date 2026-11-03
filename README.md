@@ -114,7 +114,13 @@ The summary and largest-changes sections each span the report width. Largest cha
 
 This compares recorded usage and metadata, not file contents. Renames appear as a removal and an addition; unchanged file size and metadata do not prove identical contents. For meaningful results, capture both snapshots with consistent scanner settings and coverage.
 
-Comparison currently holds snapshots in memory. Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). It is not intended for 100-million-file scans; memory requirements can be substantial even below the limits.
+Comparison uses private temporary disk storage and streamed HTML output rather than retaining both snapshots and the complete comparison tree in memory. Native GDU export arrays are parsed incrementally. Other supported JSON mapping/wrapper forms use a compatibility path limited to 16 MiB after decompression; larger non-native exports must be re-exported in native GDU format.
+
+Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two snapshots together are limited to 5,000,000 nodes (files and directories). Additional limits bound JSON strings/numbers, nesting, individual records, active metadata, and compatibility-mode path expansion. Temporary comparison storage is capped at 8 GiB; compressed payload and final-output staging need additional disk space. Set `TMPDIR` to a location with sufficient free space; temporary data includes filenames and metadata and is stored with private permissions. Completed output replaces the destination only after generation succeeds. New comparison reports are private (`0600`); replacing an existing regular report preserves its permissions. For stdout output, generation is staged on disk before copying to stdout.
+
+Encrypted comparisons retain the existing authenticated-encryption format and are limited to 64 MiB of compressed comparison data, with an explicit error above that limit. Complete reports still load their retained data into the browser: virtualized rows reduce DOM size, not the browser's data-memory requirements. Very large complete reports may therefore need substantial browser memory even when generation succeeds.
+
+Memory validation on Linux: a complete comparison of two approximately 1.87-million-entry GDU snapshots (132–133 MiB expanded JSON each) completed under a hard 1 GiB memory limit with swap disabled and `GOMEMLIMIT=384MiB`. The run took 6 minutes 47 seconds, peaked at approximately 1,000 MiB RSS, and retained 1,874,376 paths in a 35.44 MiB HTML report. These are measurements for that dataset and environment, not a universal memory guarantee; disk-backed mappings also contribute to RSS. `GOMEMLIMIT` is a soft Go-runtime target, not a hard process-memory cap.
 
 ## Options
 
