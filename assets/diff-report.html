@@ -1194,17 +1194,22 @@
       }
       $('csv').onclick = exportCSV;
       $('rankLimit').addEventListener('change', rankings);
+      let diffPayloadReleased = false;
       async function boot() {
         $('retry').hidden = true;
         $('loading').hidden = false;
         $('loading').textContent = 'Opening comparison…';
         try {
-          const payload = JSON.parse($('diffData').textContent);
+          let payload = JSON.parse($('diffData').textContent);
           if (payload.format !== 'gds-diff-json-v1') throw new Error('Unsupported comparison format.');
-          const compressed = payload.encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
+          let compressed = payload.encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
           if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot decompress reports. Open this file in a current Chrome, Edge, Firefox, or Safari.');
           const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
-          data = JSON.parse(await new Response(stream).text());
+          payload = null;
+          compressed = null;
+          $('diffData').textContent = '';
+          diffPayloadReleased = true;
+          data = await parseDiffJSONStream(stream);
           $('diffMode').textContent = 'Diff mode: ' + (data.complete === true ? 'Complete' : 'Changes only');
           indexReport();
           current = data.root;
@@ -1218,7 +1223,7 @@
           $('retry').hidden = false;
         }
       }
-      $('retry').onclick = boot;
+      $('retry').onclick = () => diffPayloadReleased ? location.reload() : boot();
       boot();
     </script>
   </body>

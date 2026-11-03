@@ -120,6 +120,8 @@ Each input is limited to 512 MiB on disk and 1 GiB after decompression; the two 
 
 Encrypted comparisons preserve the existing authenticated-encryption format and accept up to 64 MiB of compressed comparison data. Above that limit, generation fails explicitly rather than silently removing encryption or paths. Large complete reports can still use substantial memory when opened in a browser; terminal-generator memory and browser memory are separate concerns.
 
+The comparison browser parses decompressed JSON incrementally instead of building one giant response string. This allows complete reports whose expanded JSON exceeds browser string/body-buffer limits to open offline. The loaded directory tree still occupies browser memory. The 1,874,376-node validation report (646.95 MiB expanded JSON) loaded offline in headless Chromium in approximately 79 seconds, with systemd reporting a 1.6 GiB process-group memory peak; large reports may take a minute or more to open. If a loading attempt fails after its embedded payload has been released, Retry reloads the report to start cleanly.
+
 Measured complete-mode validation on the October/November 2026 dataset (1,860,935 and 1,871,861 input entries) completed in 27.9 seconds with approximately 1.85 GiB peak RSS under a hard 2 GiB limit and no swap. No `GOMEMLIMIT` or `GOGC` override was used; one collection at the comparison-to-rendering handoff releases completed snapshot/index work. The 35.45 MiB report was checked against an independently extracted union of all 1,874,376 input paths, including 1,857,761 unchanged paths. The previous implementation hit a 3,328 MiB limit during complete-mode rendering. These are dataset/environment measurements, not a universal memory guarantee.
 
 ## Options
