@@ -222,19 +222,51 @@ func runDiff(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "webdiskstat: --diff requires exactly two input paths")
 		return 2
 	}
-	report, err := buildDiskDiffReport(opts.inputs[0], opts.inputs[1], stdin, opts.complete)
+	stdinUsed := false
+	load := func(source, label string) (*Node, diffMetadata, error) {
+		if source == "-" {
+			if stdinUsed {
+				return nil, diffMetadata{}, fmt.Errorf("stdin may be used only once")
+			}
+			stdinUsed = true
+		}
+		raw, err := readJSON(source, stdin)
+		if err != nil {
+			return nil, diffMetadata{}, fmt.Errorf("%s (%s): %w", label, source, err)
+		}
+		root, meta, err := normalizeGDUForDiff(raw)
+		if err != nil {
+			return nil, diffMetadata{}, fmt.Errorf("%s (%s): %w", label, source, err)
+		}
+		return root, meta, nil
+	}
+	before, bMeta, err := load(opts.inputs[0], "baseline")
 	if err != nil {
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
-	defer report.Close()
+	after, aMeta, err := load(opts.inputs[1], "current")
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	report, err := buildDiffReportWithOptions(before, after, opts.inputs[0], opts.inputs[1], diffOptions{Complete: opts.complete})
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	report.Before.CapturedAt = bMeta.capturedAt
+	report.After.CapturedAt = aMeta.capturedAt
 	var password *string
 	if opts.hasPass {
 		password = &opts.password
 	}
-	outputPath, err := writeAtomicReport(opts.output, stdout, func(writer io.Writer) error {
-		return writeDiskDiffReport(writer, report, password)
-	})
+	page, err := renderDiffReport(report, password)
+	if err != nil {
+		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
+		return 1
+	}
+	outputPath, err := writeReport(page, opts.output, stdout)
 	if err != nil {
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1

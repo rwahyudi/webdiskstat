@@ -3,4 +3,3 @@ __pycache__/
 *.html
 !example/
 !example/report.html
-.slim/deepwork/
