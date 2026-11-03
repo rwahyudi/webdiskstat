@@ -133,6 +133,14 @@ usage: webdiskstat [--input-type gdu|ncdu] [-o OUTPUT] [--password PASSWORD] [in
 
 Running the command without piped input or an input file prints the usage instructions. Argument errors use exit status 2; input, conversion, and output errors use exit status 1.
 
+### Terminal feedback
+
+When stderr is an interactive terminal, report generation shows an animated PTerm spinner with the current stage and elapsed time. Successful generation prints the output location, HTML file size, duration, and file/folder counts. Comparisons also show change counts and the report mode. This display does not change the comparison algorithm or report contents.
+
+Progress and statistics go to stderr, so `-o -` still produces only HTML on stdout and piped scanner input remains supported. Redirected stderr keeps the existing plain output without animation. `NO_COLOR` disables color; `TERM=dumb` and CI environments disable animation.
+
+The Go 1.25-compatible PTerm dependency is vendored with a local spinner synchronization fix so updates and shutdown do not race. Preserve that fix in `vendor/github.com/pterm/pterm/spinner_printer.go` when refreshing vendored dependencies, until an upstream version provides equivalent synchronization. The existing `vendor/material-file-icons` assets must also be preserved.
+
 ## Encryption
 
 Encrypt the embedded report data with `--password`:

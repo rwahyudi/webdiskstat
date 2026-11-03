@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const usageText = `Usage:
@@ -60,11 +61,14 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	progress := newCLIProgress(stderr, os.Stderr, time.Now())
+	defer progress.Close()
 	opts, err := parseArgs(args, stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 2
 	}
@@ -73,28 +77,35 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if opts.diff {
-		return runDiff(opts, stdin, stdout, stderr)
+		return runDiffWithProgress(opts, stdin, stdout, stderr, progress)
 	}
 	if opts.hasPass && opts.password == "" {
+		progress.Close()
 		fmt.Fprintln(stderr, "webdiskstat: --password must not be empty")
 		return 2
 	}
 	if opts.input == "-" && stdinIsTerminal(stdin) {
+		progress.Close()
 		printNoInputHelp(stderr)
 		return 2
 	}
 
+	progress.Update("Reading scan data")
 	raw, err := readJSON(opts.input, stdin)
 	if err != nil {
 		if errors.Is(err, errNoInput) {
+			progress.Close()
 			printNoInputHelp(stderr)
 			return 2
 		}
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
+	progress.Update("Preparing file tree")
 	root, err := normalizeExport(raw, opts.inputType)
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
@@ -103,17 +114,25 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if opts.hasPass {
 		password = &opts.password
 	}
+	progress.Update("Building HTML report")
 	report, err := renderReport(root, password)
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
+	progress.Update("Writing report")
 	outputPath, err := writeReport(report, opts.output, stdout)
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
-	if opts.output != "-" {
+	dirs := max(0, root.Items-root.Files)
+	if root.Type == "dir" {
+		dirs++
+	}
+	if !progress.Finish(cliSummary{Path: outputPath, Bytes: len(report), Elapsed: time.Since(progress.started), Files: root.Files, Dirs: dirs, Encrypted: opts.hasPass}) && opts.output != "-" {
 		fmt.Fprintf(stderr, "Wrote %s\n", outputPath)
 	}
 	return 0
@@ -214,16 +233,25 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 }
 
 func runDiff(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer) int {
+	p := newCLIProgress(stderr, os.Stderr, time.Now())
+	defer p.Close()
+	return runDiffWithProgress(opts, stdin, stdout, stderr, p)
+}
+
+func runDiffWithProgress(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer, progress *cliProgress) int {
 	if opts.hasPass && opts.password == "" {
+		progress.Close()
 		fmt.Fprintln(stderr, "webdiskstat: --password must not be empty")
 		return 2
 	}
 	if len(opts.inputs) != 2 {
+		progress.Close()
 		fmt.Fprintln(stderr, "webdiskstat: --diff requires exactly two input paths")
 		return 2
 	}
 	stdinUsed := false
 	load := func(source, label string) (*Node, diffMetadata, error) {
+		progress.Update("Reading " + label + " snapshot")
 		if source == "-" {
 			if stdinUsed {
 				return nil, diffMetadata{}, fmt.Errorf("stdin may be used only once")
@@ -242,16 +270,20 @@ func runDiff(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	before, bMeta, err := load(opts.inputs[0], "baseline")
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
 	after, aMeta, err := load(opts.inputs[1], "current")
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
+	progress.Update("Comparing snapshots")
 	report, err := buildDiffReportWithOptions(before, after, opts.inputs[0], opts.inputs[1], diffOptions{Complete: opts.complete})
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
@@ -261,17 +293,21 @@ func runDiff(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer) int {
 	if opts.hasPass {
 		password = &opts.password
 	}
+	progress.Update("Building changes report")
 	page, err := renderDiffReport(report, password)
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
+	progress.Update("Writing report")
 	outputPath, err := writeReport(page, opts.output, stdout)
 	if err != nil {
+		progress.Close()
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
-	if opts.output != "-" {
+	if !progress.Finish(cliSummary{Path: outputPath, Bytes: len(page), Elapsed: time.Since(progress.started), Files: report.After.Files, Dirs: report.After.Directories, Diff: report.StatusCounts, Complete: report.Complete, Encrypted: opts.hasPass}) && opts.output != "-" {
 		fmt.Fprintf(stderr, "Wrote %s\n", outputPath)
 	}
 	return 0
