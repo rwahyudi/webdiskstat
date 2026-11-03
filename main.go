@@ -12,7 +12,7 @@ import (
 
 const usageText = `Usage:
   webdiskstat [--input-type gdu|ncdu] [-o OUTPUT] [--password PASSWORD] [input]
-  webdiskstat --diff before.json[.gz] after.json[.gz] [-o OUTPUT]
+  webdiskstat --diff [--complete] before.json[.gz] after.json[.gz] [-o OUTPUT]
   webdiskstat -v
 
 Build a static WinDirStat-like web report from gdu or ncdu JSON.
@@ -23,6 +23,7 @@ Arguments:
 Options:
   --input-type FORMAT   Input JSON format: gdu or ncdu. Defaults to gdu.
   --diff                Compare two gdu snapshots and write a changes report.
+  -c, --complete        Include unchanged nodes in a diff report (requires --diff).
   -o, --output PATH     HTML output path, or '-' for stdout. Defaults to webdiskstat.html.
   --password PASSWORD   Encrypt embedded report data with this password.
   -v, --version         Print the version and local build time.
@@ -32,6 +33,7 @@ Examples:
   ncdu -o- / | webdiskstat --input-type ncdu -o webdiskstat.html
   zcat report.json.gz | webdiskstat -o report.html
   webdiskstat --diff before.json after.json -o changes.html
+  webdiskstat --diff --complete before.json after.json -o full-changes.html
 `
 
 type cliOptions struct {
@@ -42,6 +44,7 @@ type cliOptions struct {
 	hasPass   bool
 	version   bool
 	diff      bool
+	complete  bool
 	inputs    []string
 }
 
@@ -129,6 +132,8 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 			opts.version = true
 		case arg == "--diff":
 			opts.diff = true
+		case arg == "-c" || arg == "--complete":
+			opts.complete = true
 		case arg == "-":
 			positional = append(positional, arg)
 		case arg == "--":
@@ -171,6 +176,9 @@ func parseArgs(args []string, stderr io.Writer) (cliOptions, error) {
 	}
 	if opts.inputType != "gdu" && opts.inputType != "ncdu" {
 		return opts, fmt.Errorf("unsupported input type: %s", opts.inputType)
+	}
+	if opts.complete && !opts.diff {
+		return opts, fmt.Errorf("--complete requires --diff")
 	}
 	switch len(positional) {
 	case 0:
@@ -242,7 +250,7 @@ func runDiff(opts cliOptions, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1
 	}
-	report, err := buildDiffReport(before, after, opts.inputs[0], opts.inputs[1])
+	report, err := buildDiffReportWithOptions(before, after, opts.inputs[0], opts.inputs[1], diffOptions{Complete: opts.complete})
 	if err != nil {
 		fmt.Fprintf(stderr, "webdiskstat: %v\n", err)
 		return 1

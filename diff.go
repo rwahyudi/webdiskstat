@@ -12,6 +12,7 @@ type DiffReport struct {
 	Before       DiffSnapshot   `json:"before"`
 	After        DiffSnapshot   `json:"after"`
 	Root         *DiffNode      `json:"root"`
+	Complete     bool           `json:"complete"`
 	Increased    int64          `json:"increased"`
 	Decreased    int64          `json:"decreased"`
 	StatusCounts map[string]int `json:"statusCounts"`
@@ -50,7 +51,15 @@ type diffMetadata struct {
 	root, capturedAt string
 }
 
+type diffOptions struct {
+	Complete bool
+}
+
 func buildDiffReport(before, after *Node, beforeSource, afterSource string) (*DiffReport, error) {
+	return buildDiffReportWithOptions(before, after, beforeSource, afterSource, diffOptions{})
+}
+
+func buildDiffReportWithOptions(before, after *Node, beforeSource, afterSource string, opts diffOptions) (*DiffReport, error) {
 	if before == nil || after == nil {
 		return nil, fmt.Errorf("both snapshots must have a root")
 	}
@@ -179,14 +188,14 @@ func buildDiffReport(before, after *Node, beforeSource, afterSource string) (*Di
 		sort.Strings(keys)
 		for _, k := range keys {
 			child := build(k)
-			if child.Status != "unchanged" || len(child.Children) > 0 {
+			if opts.Complete || child.Status != "unchanged" || len(child.Children) > 0 {
 				node.Children = append(node.Children, child)
 			}
 		}
 		return node
 	}
 	root := build(beforeRoot)
-	return &DiffReport{Before: snapshotInfo(before, beforeSource), After: snapshotInfo(after, afterSource), Root: root, Increased: increased, Decreased: decreased, StatusCounts: statuses, Rankings: rankings.report()}, nil
+	return &DiffReport{Before: snapshotInfo(before, beforeSource), After: snapshotInfo(after, afterSource), Root: root, Complete: opts.Complete, Increased: increased, Decreased: decreased, StatusCounts: statuses, Rankings: rankings.report()}, nil
 }
 
 func cleanDiffRoot(value string) string {

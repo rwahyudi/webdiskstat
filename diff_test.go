@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -61,6 +62,60 @@ func TestBuildDiffReportChangesOnlyWithAncestorsAndZeroSizeAdded(t *testing.T) {
 	}
 	if report.Increased != 5 || report.Decreased != 0 {
 		t.Fatalf("activity totals +%d/-%d, want +5/-0", report.Increased, report.Decreased)
+	}
+}
+
+func TestBuildDiffReportCompleteIncludesUnchangedBranchesWithoutChangingMetrics(t *testing.T) {
+	before, _ := mustDiffSnapshot(t, `{"name":"/data","path":"/data","dsize":1,"children":[{"name":"same","dsize":2,"children":[{"name":"leaf","size":5}]},{"name":"remove","size":3}]}`)
+	after, _ := mustDiffSnapshot(t, `{"name":"/data","path":"/data","dsize":1,"children":[{"name":"same","dsize":2,"children":[{"name":"leaf","size":5}]},{"name":"added","size":4}]}`)
+	changesOnly, err := buildDiffReport(before, after, "before", "after")
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete, err := buildDiffReportWithOptions(before, after, "before", "after", diffOptions{Complete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changesOnly.Complete || !complete.Complete {
+		t.Fatalf("complete flags = default:%v complete:%v", changesOnly.Complete, complete.Complete)
+	}
+	if len(changesOnly.Root.Children) != 2 {
+		t.Fatalf("default visible child count = %d, want added and removed", len(changesOnly.Root.Children))
+	}
+	var unchanged *DiffNode
+	for _, child := range complete.Root.Children {
+		if child.Name == "same" {
+			unchanged = child
+		}
+	}
+	if unchanged == nil || unchanged.Status != "unchanged" || len(unchanged.Children) != 1 || unchanged.Children[0].Status != "unchanged" {
+		t.Fatalf("unchanged branch and leaf not retained: %#v", unchanged)
+	}
+	if complete.Increased != changesOnly.Increased || complete.Decreased != changesOnly.Decreased ||
+		!reflect.DeepEqual(complete.StatusCounts, changesOnly.StatusCounts) || !reflect.DeepEqual(complete.Rankings, changesOnly.Rankings) {
+		t.Fatalf("complete mode changed metrics: default totals/status/rankings=%d/%d/%#v/%#v complete=%d/%d/%#v/%#v", changesOnly.Increased, changesOnly.Decreased, changesOnly.StatusCounts, changesOnly.Rankings, complete.Increased, complete.Decreased, complete.StatusCounts, complete.Rankings)
+	}
+	if complete.StatusCounts["unchanged"] != 0 {
+		t.Fatalf("unchanged status count = %d, want existing zero-count behavior", complete.StatusCounts["unchanged"])
+	}
+}
+
+func TestBuildDiffReportCompleteIncludesIdenticalSnapshotTree(t *testing.T) {
+	before, _ := mustDiffSnapshot(t, `{"name":"/data","path":"/data","dsize":1,"children":[{"name":"same","dsize":2,"children":[{"name":"leaf","size":5}]}]}`)
+	after, _ := mustDiffSnapshot(t, `{"name":"/data","path":"/data","dsize":1,"children":[{"name":"same","dsize":2,"children":[{"name":"leaf","size":5}]}]}`)
+	defaultReport, err := buildDiffReport(before, after, "before", "after")
+	if err != nil {
+		t.Fatal(err)
+	}
+	complete, err := buildDiffReportWithOptions(before, after, "before", "after", diffOptions{Complete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(defaultReport.Root.Children) != 0 {
+		t.Fatalf("default mode retained %d unchanged children", len(defaultReport.Root.Children))
+	}
+	if len(complete.Root.Children) != 1 || len(complete.Root.Children[0].Children) != 1 {
+		t.Fatalf("complete mode tree = %#v", complete.Root.Children)
 	}
 }
 

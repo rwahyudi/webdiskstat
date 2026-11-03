@@ -54,6 +54,14 @@
         padding-left: 12px;
         color: var(--muted);
       }
+      header > #diffMode {
+        border-left: 0;
+        padding: 3px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 11px;
+        white-space: nowrap;
+      }
       main {
         min-width: 0;
         margin: auto;
@@ -548,11 +556,17 @@
       }
       @media(max-width:600px) {
         header {
-          padding: 8px 12px;
+          padding: 8px;
           min-height: 52px;
+          gap: 8px;
+          flex-wrap: wrap;
         }
         header > span {
           font-size: 12px;
+        }
+        header > #diffMode {
+          padding: 2px 4px;
+          font-size: 10px;
         }
         main {
           padding: 8px;
@@ -748,6 +762,7 @@
         webdiskstat
       </strong>
       <span>Snapshot comparison</span>
+      <span id="diffMode"></span>
       <div class="header-actions">
         <!-- DIFF_THEME_SWITCH -->
         <button id="browserHelpButton" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
@@ -1190,6 +1205,7 @@
           if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot decompress reports. Open this file in a current Chrome, Edge, Firefox, or Safari.');
           const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
           data = JSON.parse(await new Response(stream).text());
+          $('diffMode').textContent = 'Diff mode: ' + (data.complete === true ? 'Complete' : 'Changes only');
           indexReport();
           current = data.root;
           summary();

@@ -98,6 +98,43 @@ func TestDiffReportBrowserGroupedChanges(t *testing.T) {
 	runDiffBrowserPython(t, diffBrowserGroupedCheck, map[string]string{"groups": html})
 }
 
+func TestDiffReportBrowserCompleteMode(t *testing.T) {
+	before, _ := mustDiffSnapshot(t, `{"name":"/root","path":"/root","dsize":10,"children":[{"name":"stable-branch","dsize":4,"children":[{"name":"stable.txt","size":4}]},{"name":"removed.txt","size":2}]}`)
+	after, _ := mustDiffSnapshot(t, `{"name":"/root","path":"/root","dsize":12,"children":[{"name":"stable-branch","dsize":4,"children":[{"name":"stable.txt","size":4}]},{"name":"added.txt","size":4}]}`)
+	complete, err := buildDiffReportWithOptions(before, after, "before", "after", diffOptions{Complete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := renderDiffReport(complete, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	password := "complete-password"
+	encrypted, err := renderDiffReport(complete, &password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changesOnlyReport, err := buildDiffReport(before, after, "before", "after")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changesOnly, err := renderDiffReport(changesOnlyReport, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identicalBefore, _ := mustDiffSnapshot(t, `{"name":"/identical","path":"/identical","dsize":1,"children":[{"name":"same","size":1}]}`)
+	identicalAfter, _ := mustDiffSnapshot(t, `{"name":"/identical","path":"/identical","dsize":1,"children":[{"name":"same","size":1}]}`)
+	identical, err := buildDiffReportWithOptions(identicalBefore, identicalAfter, "before", "after", diffOptions{Complete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	identicalHTML, err := renderDiffReport(identical, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDiffBrowserPython(t, diffBrowserCompleteCheck, map[string]string{"complete": plain, "encrypted": encrypted, "changes-only": changesOnly, "identical": identicalHTML})
+}
+
 func TestDiffReportIconSupport(t *testing.T) {
 	const legacy = `function materialIconLookupName(node) {
   return node.name;
@@ -248,6 +285,56 @@ for theme in ['dark','light']:
 finish('PASS: Size/Items groups, signed changes and percent edge cases in both themes, all nested keyboard sorts, resize/group alignment, visibility and persistence, optional file columns, narrow horizontal scrolling without page overflow')
 `
 
+const diffBrowserCompleteCheck = diffBrowserPythonPrelude + `
+page=new_page();load(page,'complete')
+assert page.locator('#diffMode').inner_text()=='Diff mode: Complete'
+assert page.locator('#tree .row[title="/root/stable-branch"]').count()==1
+assert not page.locator('#csv').is_disabled()
+assert page.locator('#tree .row[title="/root/added.txt"]').count()==1
+page.locator('#tree .row[title="/root/stable-branch"]').dblclick()
+assert page.evaluate('DiffBrowser.snapshot().path')=='/root/stable-branch',page.evaluate('DiffBrowser.snapshot()')
+assert page.locator('#tree .row[title="/root/stable-branch/stable.txt"]').count()==1,(page.evaluate('DiffBrowser.snapshot()'),page.locator('#tree').inner_text())
+page.locator('#reset').click();page.locator('#status').select_option('added')
+assert page.evaluate('DiffBrowser.snapshot().total')==1,page.evaluate('DiffBrowser.snapshot()')
+assert page.locator('#tree .row[title="/root/stable-branch"]').count()==0,page.locator('#tree').inner_text()
+with page.expect_download() as dl:page.locator('#csv').click()
+records=list(csv.DictReader(io.StringIO(pathlib.Path(dl.value.path()).read_text(encoding='utf-8-sig'))))
+assert all(r['status']!='unchanged' for r in records),records
+assert {'added','removed'}<={r['status'] for r in records},records
+load(page,'changes-only');assert page.locator('#diffMode').inner_text()=='Diff mode: Changes only'
+assert page.locator('#tree .row[title="/root/stable-branch"]').count()==0
+assert page.locator('#tree .row[title="/root/added.txt"]').count()==1
+load(page,'identical');assert page.locator('#csv').is_disabled()
+assert page.locator('#tree .row[title="/identical/same"]').count()==1
+page.goto((root/'encrypted.html').as_uri());page.locator('#passwordDialog').wait_for(state='visible')
+assert page.locator('#diffMode').inner_text()==''
+page.locator('#password').fill('complete-password');page.get_by_role('button',name='Unlock',exact=True).click()
+page.locator('#report').wait_for(state='visible',timeout=60000)
+assert page.locator('#diffMode').inner_text()=='Diff mode: Complete'
+assert page.locator('#tree .row[title="/root/stable-branch"]').count()==1
+out=os.environ.get('DIFF_COMPLETE_SCREENSHOTS')
+if out:
+ pathlib.Path(out).mkdir(parents=True,exist_ok=True)
+def check_header_layout(label,width):
+ page.set_viewport_size({'width':width,'height':844})
+ assert page.locator('#diffMode').inner_text()==label
+ assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),(label,width,page.evaluate('({scroll:document.documentElement.scrollWidth,width:innerWidth})'))
+ mode=page.locator('#diffMode').bounding_box();actions=page.locator('.header-actions').bounding_box()
+ assert mode['x']+mode['width']<=actions['x'] or mode['y']+mode['height']<=actions['y'] or actions['y']+actions['height']<=mode['y'],(label,width,mode,actions)
+ assert page.locator('#themeToggle').is_visible() and page.locator('#browserHelpButton').is_visible()
+for theme in ['dark','light']:
+ page.evaluate('(theme)=>applyTheme(theme,true)',theme);page.wait_for_timeout(200)
+ page.set_viewport_size({'width':1440,'height':1000})
+ assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+ if out:page.screenshot(path=str(pathlib.Path(out)/('desktop-'+theme+'.png')))
+ for mode,report_name,label in [('complete','complete','Diff mode: Complete'),('changes-only','changes-only','Diff mode: Changes only')]:
+  load(page,report_name)
+  for width in [320,390]:
+   check_header_layout(label,width)
+   if out:page.screenshot(path=str(pathlib.Path(out)/('mobile-'+mode+'-'+str(width)+'-'+theme+'.png')))
+finish('PASS: diff-mode label defaults safely, complete unchanged branch/leaf navigation, status filter, no-change CSV disabled, encrypted label after unlock, complete/default header fit at 320/390 in both themes')
+`
+
 const diffBrowserParityCheck = diffBrowserPythonPrelude + `
 normal=new_page();diff=new_page();load(normal,'normal');load(diff,'diff');pages=[normal,diff]
 def snapshot(page):
@@ -383,8 +470,8 @@ for theme in ['dark','light']:
   diff.locator('footer').evaluate('(e)=>e.scrollIntoView({block:"end"})')
   if out:diff.screenshot(path=str(pathlib.Path(out)/('footer-'+device+'-'+theme+'.png')))
   diff.evaluate('window.scrollTo(0,0)')
-  header=diff.locator('header').bounding_box();help_box=diff.locator('#browserHelpButton').bounding_box()
-  assert abs(help_box['y']+help_box['height']/2-(header['y']+header['height']/2))<3
+  actions=diff.locator('.header-actions').bounding_box();help_box=diff.locator('#browserHelpButton').bounding_box()
+  assert abs(help_box['y']+help_box['height']/2-(actions['y']+actions['height']/2))<3
   diff.locator('#browserHelpButton').click()
   help_dialog=diff.locator('#browserHelp');assert help_dialog.is_visible()
   columns=help_dialog.locator('.browser-help-grid').evaluate('(e)=>getComputedStyle(e).gridTemplateColumns.split(" ").length')
