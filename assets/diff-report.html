@@ -1201,7 +1201,8 @@
         $('loading').textContent = 'Opening comparison…';
         try {
           let payload = JSON.parse($('diffData').textContent);
-          if (payload.format !== 'gds-diff-json-v1') throw new Error('Unsupported comparison format.');
+          const binary = payload.format === 'gds-diff-binary-v2';
+          if (!binary && payload.format !== 'gds-diff-json-v1') throw new Error('Unsupported comparison format.');
           let compressed = payload.encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
           if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot decompress reports. Open this file in a current Chrome, Edge, Firefox, or Safari.');
           const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -1209,7 +1210,11 @@
           compressed = null;
           $('diffData').textContent = '';
           diffPayloadReleased = true;
-          data = await parseDiffJSONStream(stream);
+          if (binary) {
+            data = decodeDiffBinary(new Uint8Array(await new Response(stream).arrayBuffer()));
+          } else {
+            data = await parseDiffJSONStream(stream);
+          }
           $('diffMode').textContent = 'Diff mode: ' + (data.complete === true ? 'Complete' : 'Changes only');
           indexReport();
           current = data.root;

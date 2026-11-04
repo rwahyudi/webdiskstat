@@ -51,8 +51,8 @@ func TestRunDiffWritesReport(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit code = %d; stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "gds-diff-json-v1") {
-		t.Fatal("stdout does not contain diff report payload")
+	if payload := diffPayloadFromHTML(t, stdout.String()); payload["format"] != "gds-diff-binary-v2" {
+		t.Fatalf("stdout does not contain compact binary diff data: %v", payload["format"])
 	}
 }
 

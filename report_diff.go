@@ -65,7 +65,7 @@ func diffReportRuntime() (string, error) {
 		return "", err
 	}
 	crypto = strings.ReplaceAll(crypto, "await requestReportPassword()", "await requestReportPassword(promptText)")
-	return encoding + crypto + diffJSONRuntime, nil
+	return encoding + crypto + diffJSONRuntime + diffBinaryRuntime, nil
 }
 
 func renderDiffReport(report *DiffReport, password *string) (string, error) {

@@ -96,6 +96,9 @@ func TestRunDiffCompleteModeInPlainAndEncryptedPayloads(t *testing.T) {
 				t.Fatalf("run exit code = %d; stderr=%s", code, stderr.String())
 			}
 			payload := diffPayloadFromHTML(t, stdout.String())
+			if payload["format"] != "gds-diff-binary-v2" {
+				t.Fatalf("unexpected diff format: %v", payload["format"])
+			}
 			if payload["encrypted"] != !tc.plain {
 				t.Fatalf("payload encrypted = %v, want %v", payload["encrypted"], !tc.plain)
 			}
@@ -113,12 +116,38 @@ func TestRunDiffCompleteModeInPlainAndEncryptedPayloads(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				var report DiffReport
-				if err := json.Unmarshal(raw, &report); err != nil {
+				binary := bytes.NewReader(raw)
+				magic := make([]byte, 4)
+				if _, err := io.ReadFull(binary, magic); err != nil || string(magic) != compactDiffBinaryMagic {
+					t.Fatalf("invalid binary diff header: %q, %v", magic, err)
+				}
+				metadata := make([]byte, int(readTestUvarint(t, binary)))
+				if _, err := io.ReadFull(binary, metadata); err != nil {
 					t.Fatal(err)
 				}
-				if !report.Complete || len(report.Root.Children) != 1 || report.Root.Children[0].Name != "same" {
-					t.Fatalf("plain complete report = %#v", report)
+				var report DiffReport
+				if err := json.Unmarshal(metadata, &report); err != nil {
+					t.Fatal(err)
+				}
+				stringsTable := []string{""}
+				for remaining := readTestUvarint(t, binary); remaining > 0; remaining-- {
+					value := make([]byte, int(readTestUvarint(t, binary)))
+					if _, err := io.ReadFull(binary, value); err != nil {
+						t.Fatal(err)
+					}
+					stringsTable = append(stringsTable, string(value))
+				}
+				if count := readTestUvarint(t, binary); count != 2 || !report.Complete {
+					t.Fatalf("plain complete report: complete=%t nodes=%d", report.Complete, count)
+				}
+				for row := 0; row < 2; row++ {
+					var fields [8]uint64
+					for i := range fields {
+						fields[i] = readTestUvarint(t, binary)
+					}
+					if row == 0 && fields[7] != 1 || row == 1 && stringsTable[fields[0]] != "same" {
+						t.Fatalf("plain complete node %d = %v", row, fields)
+					}
 				}
 			}
 		})

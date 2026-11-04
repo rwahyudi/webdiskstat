@@ -18,7 +18,7 @@ const (
 	compactDiffPayloadMarker  = "__WEBDISKSTAT_COMPACT_DIFF_PAYLOAD_7b4da71f__"
 )
 
-// writeCompactDiffReport streams the JSON document to a temporary gzip file,
+// writeCompactDiffReport streams the binary comparison to a temporary gzip file,
 // then streams the base85 payload into either stdout or an atomically-installed
 // HTML file. The template is fixed-size; the comparison itself is never held as
 // a JSON, base85, or rendered-HTML string.
@@ -38,13 +38,13 @@ func writeCompactDiffReport(output string, stdout io.Writer, report *compactDiff
 		limit = &compressedLimitWriter{writer: compressed, remaining: compactDiffEncryptedLimit}
 	}
 	gz := gzip.NewWriter(limit)
-	bufferedJSON := bufio.NewWriterSize(gz, compactDiffChunkSize)
-	if err := report.WriteJSON(bufferedJSON); err != nil {
+	bufferedBinary := bufio.NewWriterSize(gz, compactDiffChunkSize)
+	if err := report.WriteBinary(bufferedBinary); err != nil {
 		_ = gz.Close()
 		_ = compressed.Close()
 		return "", 0, err
 	}
-	if err := bufferedJSON.Flush(); err != nil {
+	if err := bufferedBinary.Flush(); err != nil {
 		_ = gz.Close()
 		_ = compressed.Close()
 		return "", 0, err
@@ -140,7 +140,7 @@ func writeCompactDiffHTML(output string, stdout io.Writer, encrypted bool, compr
 			return "", 0, fmt.Errorf("encrypted payload is missing")
 		}
 		delete(encryptedPayload, "payload")
-		encryptedPayload["format"] = "gds-diff-json-v1"
+		encryptedPayload["format"] = "gds-diff-binary-v2"
 		encodedHeader, err := scriptJSON(encryptedPayload)
 		if err != nil {
 			return "", 0, err
@@ -150,7 +150,7 @@ func writeCompactDiffHTML(output string, stdout io.Writer, encrypted bool, compr
 		payloadLength = int64(len(encoded))
 		payloadWriter = func(w io.Writer) error { return writeAll(w, []byte(encoded)) }
 	} else {
-		header, err := scriptJSON(map[string]any{"encrypted": false, "encoding": "base85", "format": "gds-diff-json-v1", "length": compressedLength})
+		header, err := scriptJSON(map[string]any{"encrypted": false, "encoding": "base85", "format": "gds-diff-binary-v2", "length": compressedLength})
 		if err != nil {
 			return "", 0, err
 		}

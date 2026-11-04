@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -36,7 +38,7 @@ func TestCompactDiffRendererStreamsPlainPayloadAndAtomicFile(t *testing.T) {
 	t.Setenv("TMPDIR", tmp)
 	report := compactRendererFixture(t)
 	var want bytes.Buffer
-	if err := report.WriteJSON(&want); err != nil {
+	if err := report.WriteBinary(&want); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(tmp, "report.html")
@@ -59,6 +61,9 @@ func TestCompactDiffRendererStreamsPlainPayloadAndAtomicFile(t *testing.T) {
 	}
 	assertDiffFooterMetadata(t, string(document))
 	payload := diffPayloadFromHTML(t, string(document))
+	if payload["format"] != "gds-diff-binary-v2" {
+		t.Fatalf("payload format = %v, want gds-diff-binary-v2", payload["format"])
+	}
 	encoded, ok := payload["payload"].(string)
 	if !ok {
 		t.Fatal("payload is not a string")
@@ -79,7 +84,10 @@ func TestCompactDiffRendererStreamsPlainPayloadAndAtomicFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(decoded, want.Bytes()) {
-		t.Fatal("streamed payload differs from compact WriteJSON output")
+		t.Fatal("streamed payload differs from compact WriteBinary output")
+	}
+	if !bytes.HasPrefix(decoded, []byte(compactDiffBinaryMagic)) {
+		t.Fatalf("binary payload is missing magic: %q", decoded[:min(len(decoded), 8)])
 	}
 	entries, err := os.ReadDir(tmp)
 	if err != nil {
@@ -132,7 +140,7 @@ func TestCompactDiffRendererEncryptedCompatibility(t *testing.T) {
 	}
 	assertDiffFooterMetadata(t, output.String())
 	payload := diffPayloadFromHTML(t, output.String())
-	if payload["format"] != "gds-diff-json-v1" || payload["algorithm"] != encryptionAlgorithm || payload["encrypted"] != true {
+	if payload["format"] != "gds-diff-binary-v2" || payload["algorithm"] != encryptionAlgorithm || payload["encrypted"] != true {
 		t.Fatalf("unexpected encrypted envelope: %v", payload)
 	}
 	if payload["encoding"] != "base85" || payload["kdf"] != "PBKDF2-SHA256" || payload["aad"] != encryptionAAD {
@@ -140,6 +148,205 @@ func TestCompactDiffRendererEncryptedCompatibility(t *testing.T) {
 	}
 	if strings.Contains(output.String(), password) || strings.Contains(output.String(), `"path":"/data`) {
 		t.Fatal("encrypted report leaks comparison data")
+	}
+}
+
+func TestCompactDiffBinarySparseLayoutAndRootOverride(t *testing.T) {
+	report := compactRendererFixture(t)
+	// Add a path that cannot be derived from its parent's path and a distinct
+	// before timestamp to verify overrides and sparse metadata references.
+	root := &report.rows[report.root]
+	root.fullPath = "/noncanonical root Ω"
+	if len(report.rows) < 2 {
+		t.Fatal("fixture has no child")
+	}
+	child := &report.rows[int(root.firstChild)]
+	child.beforeMTime = "before-time"
+	child.afterMTime = "after-time"
+	child.status = compactStatusChanged
+	child.beforeType = compactTypeFile
+	child.afterType = compactTypeDir
+	child.beforeItems, child.afterItems = 2, 3
+	for c := root.firstChild; c >= 0; c = report.rows[c].nextSibling {
+		if report.rows[c].afterType == compactTypeDir && c != root.firstChild {
+			unchangedDir := &report.rows[c]
+			unchangedDir.beforeItems = unchangedDir.afterItems + 1
+			unchangedDir.status = compactStatusUnchanged
+			break
+		}
+	}
+	var output bytes.Buffer
+	if err := report.WriteBinary(&output); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(output.Bytes(), []byte(compactDiffBinaryMagic)) {
+		t.Fatal("missing compact binary magic")
+	}
+	// Parse enough of the stream to assert canonical metadata keys, string
+	// interning (including UTF-8), node count, and sparse overlay count.
+	reader := bytes.NewReader(output.Bytes()[len(compactDiffBinaryMagic):])
+	metadataLen := readTestUvarint(t, reader)
+	metadata := make([]byte, metadataLen)
+	if _, err := io.ReadFull(reader, metadata); err != nil {
+		t.Fatal(err)
+	}
+	var metadataObject map[string]json.RawMessage
+	if err := json.Unmarshal(metadata, &metadataObject); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := metadataObject["root"]; ok {
+		t.Fatalf("unexpected metadata JSON: %s", metadata)
+	}
+	if _, ok := metadataObject["statusCounts"]; !ok {
+		t.Fatalf("metadata missing statusCounts: %s", metadata)
+	}
+	stringCount := readTestUvarint(t, reader)
+	seenUnicode, seenTime := false, false
+	for i := uint64(0); i < stringCount; i++ {
+		n := readTestUvarint(t, reader)
+		value := make([]byte, n)
+		if _, err := io.ReadFull(reader, value); err != nil {
+			t.Fatal(err)
+		}
+		seenUnicode = seenUnicode || bytes.Contains(value, []byte("Ω"))
+		seenTime = seenTime || bytes.Equal(value, []byte("before-time"))
+	}
+	if !seenUnicode || !seenTime {
+		t.Fatalf("string table missing unicode/overlay strings: unicode=%v time=%v", seenUnicode, seenTime)
+	}
+	nodes := readTestUvarint(t, reader)
+	if nodes != uint64(report.Count) {
+		t.Fatalf("emitted nodes = %d, want %d", nodes, report.Count)
+	}
+	// Skip node base records using child counts to preserve the actual encoded
+	// record layout; each node is exactly eight uvarints.
+	for i := uint64(0); i < nodes; i++ {
+		for field := 0; field < 8; field++ {
+			_ = readTestUvarint(t, reader)
+		}
+	}
+	overlays := readTestUvarint(t, reader)
+	if overlays == 0 || overlays > nodes {
+		t.Fatalf("overlay count = %d for %d nodes", overlays, nodes)
+	}
+}
+
+func readTestUvarint(t *testing.T, r io.ByteReader) uint64 {
+	t.Helper()
+	v, err := binary.ReadUvarint(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func TestCompactDiffBinaryPropagatesWriterErrorsAndRejectsNegativeSize(t *testing.T) {
+	report := compactRendererFixture(t)
+	if err := report.WriteBinary(zeroWriter{}); !errors.Is(err, io.ErrShortWrite) {
+		t.Fatalf("short writer error = %v, want %v", err, io.ErrShortWrite)
+	}
+	if err := report.WriteBinary(errorWriter{err: io.ErrClosedPipe}); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("writer error = %v, want %v", err, io.ErrClosedPipe)
+	}
+	report.rows[report.root].after = -1
+	if err := report.WriteBinary(io.Discard); err == nil || !strings.Contains(err.Error(), "negative size") {
+		t.Fatalf("negative size error = %v, want negative-size validation", err)
+	}
+}
+
+func TestCompactDiffBinaryPreservesEmptyDirRemovalTypesAndOverlayIndices(t *testing.T) {
+	report := &compactDiffReport{
+		Complete: true, Count: 4, root: 0,
+		rows: []compactDiffRow{
+			{name: "root", fullPath: "/", before: 1 << 40, after: 1 << 40, beforeItems: 1, afterItems: 3, beforeType: compactTypeDir, afterType: compactTypeDir, status: compactStatusUnchanged, firstChild: 1, nextSibling: -1},
+			{name: "empty", fullPath: "/empty", afterType: compactTypeDir, afterMTime: "created", status: compactStatusAdded, firstChild: -1, nextSibling: 2},
+			{name: "gone", fullPath: "/gone", before: 5, beforeFiles: 1, beforeType: compactTypeFile, status: compactStatusRemoved, firstChild: -1, nextSibling: 3},
+			{name: "changed", fullPath: "/explicit/noncanonical", before: 1, after: 2, beforeType: compactTypeFile, afterType: compactTypeDir, beforeMTime: "", afterMTime: "after", status: compactStatusChanged, firstChild: -1, nextSibling: -1},
+		},
+	}
+	var output bytes.Buffer
+	if err := report.WriteBinary(&output); err != nil {
+		t.Fatal(err)
+	}
+	reader := bytes.NewReader(output.Bytes()[len(compactDiffBinaryMagic):])
+	metadataLength := readTestUvarint(t, reader)
+	if _, err := reader.Seek(int64(metadataLength), io.SeekCurrent); err != nil {
+		t.Fatal(err)
+	}
+	stringCount := readTestUvarint(t, reader)
+	stringsTable := make([]string, stringCount+1)
+	for i := uint64(1); i <= stringCount; i++ {
+		n := readTestUvarint(t, reader)
+		value := make([]byte, n)
+		if _, err := io.ReadFull(reader, value); err != nil {
+			t.Fatal(err)
+		}
+		stringsTable[i] = string(value)
+	}
+	stringAt := func(ref uint64) string {
+		if ref >= uint64(len(stringsTable)) {
+			t.Fatalf("string reference %d is out of range", ref)
+		}
+		return stringsTable[ref]
+	}
+	nodeCount := readTestUvarint(t, reader)
+	if nodeCount != 4 {
+		t.Fatalf("node count = %d, want 4", nodeCount)
+	}
+	base := make([][8]uint64, nodeCount)
+	for i := range base {
+		for field := range base[i] {
+			base[i][field] = readTestUvarint(t, reader)
+		}
+	}
+	if stringAt(base[0][1]) != "/" || stringAt(base[1][1]) != "" || stringAt(base[3][1]) != "/explicit/noncanonical" {
+		t.Fatalf("unexpected root/derived/override paths: %q %q %q", stringAt(base[0][1]), stringAt(base[1][1]), stringAt(base[3][1]))
+	}
+	if base[0][3] != 1<<40 {
+		t.Fatalf("64-bit size truncated: got %d", base[0][3])
+	}
+	if base[2][2] != 0 {
+		t.Fatalf("removed node after type = %d, want absent (0)", base[2][2])
+	}
+	overlayCount := readTestUvarint(t, reader)
+	if overlayCount != 4 {
+		t.Fatalf("overlay count = %d, want 4", overlayCount)
+	}
+	overlays := make([][6]uint64, overlayCount)
+	indices := make([]uint64, overlayCount)
+	previous := uint64(0)
+	for i := range overlays {
+		delta := readTestUvarint(t, reader)
+		if i == 0 {
+			indices[i] = delta
+		} else {
+			if delta == 0 {
+				t.Fatalf("overlay %d has nonpositive index delta (previous index %d)", i, previous)
+			}
+			indices[i] = previous + delta
+		}
+		previous = indices[i]
+		for field := range overlays[i] {
+			overlays[i][field] = readTestUvarint(t, reader)
+		}
+	}
+	if indices[0] != 0 || indices[1] != 1 || indices[2] != 2 || indices[3] != 3 {
+		t.Fatalf("overlay indices = %v, want [0 1 2 3]", indices)
+	}
+	if overlays[0][3] != 1 || overlays[0][5] != uint64(compactStatusUnchanged) {
+		t.Fatalf("unchanged parent overlay = %v; want beforeItems=1 and status=0", overlays[0])
+	}
+	if overlays[1][0] != 0 || overlays[1][4] != 0 || stringAt(base[1][6]) != "created" {
+		t.Fatalf("added empty directory lost absent-before/after-mtime values: overlay=%v", overlays[1])
+	}
+	if overlays[2][0] != uint64(compactTypeFile) || base[2][2] != 0 {
+		t.Fatalf("removed subtree types = before %d after %d", overlays[2][0], base[2][2])
+	}
+	if overlays[3][0] != uint64(compactTypeFile) || base[3][2] != uint64(compactTypeDir) || overlays[3][4] != 0 || base[3][6] == 0 {
+		t.Fatalf("file-to-directory/empty-before-mtime record mismatch: overlay=%v base=%v", overlays[3], base[3])
+	}
+	if _, err := reader.ReadByte(); err != io.EOF {
+		t.Fatalf("unexpected trailing bytes: %v", err)
 	}
 }
 
