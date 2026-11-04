@@ -99,6 +99,24 @@
         display: grid;
         grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr);
       }
+      .summary-toggle {
+        width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px;
+        padding: 8px 12px; border: 0; border-radius: 0; background: var(--header);
+        box-shadow: none; text-align: left;
+      }
+      .summary-toggle:hover { background: var(--soft); color: var(--ink); }
+      .summary-toggle-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+      .summary-net { margin-left: auto; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .summary-chevron { width: 16px; height: 16px; flex: 0 0 auto; transition: transform 200ms ease; }
+      .summary-chevron path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .summary-panel { display: grid; grid-template-rows: 1fr; opacity: 1; transition: grid-template-rows 200ms ease, opacity 200ms ease; }
+      .summary-panel-inner { min-height: 0; overflow: hidden; }
+      #summarySection.is-collapsed .summary-panel { grid-template-rows: 0fr; opacity: 0; }
+      #summarySection.is-collapsed .summary-chevron { transform: rotate(-90deg); }
+      .summary h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+      .capture-date { color: var(--ink); font-size: 15px; font-weight: 650; letter-spacing: -.01em; text-transform: none; }
+      .capture-time { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+      @media (prefers-reduced-motion: reduce) { .summary-panel, .summary-chevron { transition: none; } }
       .summary article {
         padding: 10px 12px;
         min-width: 0;
@@ -627,6 +645,10 @@
         .summary article:nth-child(3) { border-top: 1px solid var(--line); border-left: 0; }
         .summary article:nth-child(4) { border-top: 1px solid var(--line); }
       }
+      @media(max-width:480px) {
+        .summary { grid-template-columns: minmax(0,1fr); }
+        .summary article+article { border-left: 0; border-top: 1px solid var(--line); }
+      }
       th[aria-sort="ascending"] button::after,th[aria-sort="descending"] button::after {
         content: "";
         display: inline-block;
@@ -781,28 +803,26 @@
       </button>
       <div id="report" hidden>
         <section id="summarySection" class="panel" aria-label="Comparison summary">
-          <div class="summary">
+          <button id="summaryToggle" class="summary-toggle" type="button" aria-expanded="true" aria-label="Collapse comparison summary" aria-controls="summaryPanel">
+            <span class="summary-toggle-label">Comparison summary</span><strong id="summaryNet" class="summary-net"></strong>
+            <svg class="summary-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div id="summaryPanel" class="summary-panel" aria-hidden="false"><div class="summary-panel-inner"><div class="summary">
             <article>
-              <h2>
-                Before
-              </h2>
+              <h2><span>Before</span><time id="beforeDate" class="capture-date"></time></h2>
               <strong id="beforeSize" class="metric">
               </strong>
               <div id="beforeCounts">
               </div>
-              <small id="beforeSource" class="source">
-              </small>
+              <small id="beforeSource" class="source"></small><small id="beforeTime" class="capture-time"></small>
             </article>
             <article>
-              <h2>
-                After
-              </h2>
+              <h2><span>After</span><time id="afterDate" class="capture-date"></time></h2>
               <strong id="afterSize" class="metric">
               </strong>
               <div id="afterCounts">
               </div>
-              <small id="afterSource" class="source">
-              </small>
+              <small id="afterSource" class="source"></small><small id="afterTime" class="capture-time"></small>
             </article>
             <article>
               <h2>Gross change</h2>
@@ -823,7 +843,7 @@
               <div id="netCounts" class="muted">
               </div>
             </article>
-          </div>
+          </div></div></div>
         </section>
         <section id="diffBrowser" class="panel" aria-label="Explore changes">
           <div class="browser-toolbar">
@@ -1007,22 +1027,26 @@
       function signed(n) {
         return (n > 0 ? '+' : '') + n.toLocaleString();
       }
-      function captureTime(value) {
+      function captureDateParts(value) {
         const text = String(value ?? '').trim();
-        if (!text) return 'Capture time unavailable';
+        if (!text) return null;
         // GDU exports Unix seconds; other snapshot formats may carry ISO dates.
         const numeric = /^[+-]?\d+(?:\.\d+)?$/.test(text);
         const date = new Date(numeric ? Number(text) * 1000 : text);
-        if (!Number.isFinite(date.getTime())) return 'Capture time unavailable';
-        return 'Captured: ' + date.toLocaleString(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
+        if (!Number.isFinite(date.getTime())) return null;
+        return {
+          date: date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }),
+          time: date.toLocaleTimeString(undefined, {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
           timeZoneName: 'short'
-        });
+          })
+        };
+      }
+      function captureTime(value) {
+        const parts = captureDateParts(value);
+        return parts ? 'Captured: ' + parts.date + ', ' + parts.time : 'Capture time unavailable';
       }
       function tint(el, n) {
         el.classList.remove('up', 'down');
@@ -1083,10 +1107,15 @@
           const s = data[key];
           $(key + 'Size').textContent = bytes(s.size);
           $(key + 'Counts').textContent = s.files.toLocaleString() + ' files · ' + s.directories.toLocaleString() + ' directories';
-          $(key + 'Source').textContent = [s.source || 'Source unavailable', s.root && 'Root: ' + s.root, captureTime(s.capturedAt)].filter(Boolean).join(' · ');
+          const captured = captureDateParts(s.capturedAt);
+          $(key + 'Date').textContent = captured ? captured.date : 'Date unavailable';
+          $(key + 'Date').dateTime = captured ? new Date(/^[+-]?\d+(?:\.\d+)?$/.test(String(s.capturedAt ?? '').trim()) ? Number(s.capturedAt) * 1000 : s.capturedAt).toISOString() : '';
+          $(key + 'Time').textContent = captured ? captured.time : 'Capture time unavailable';
+          $(key + 'Source').textContent = [s.source || 'Source unavailable', s.root && 'Root: ' + s.root].filter(Boolean).join(' · ');
         }
         const delta = data.after.size - data.before.size;
         $('netSize').textContent = bytes(delta, true);
+        $('summaryNet').textContent = 'Net ' + bytes(delta, true);
         tint($('netSize'), delta);
         $('netPercent').textContent = percentage({
           before: data.before.size,
@@ -1195,6 +1224,15 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
       $('csv').onclick = exportCSV;
+      $('summaryToggle').addEventListener('click', event => {
+        const button = event.currentTarget;
+        const expanded = button.getAttribute('aria-expanded') !== 'true';
+        button.setAttribute('aria-expanded', String(expanded));
+        button.setAttribute('aria-label', (expanded ? 'Collapse' : 'Expand') + ' comparison summary');
+        $('summaryPanel').inert = !expanded;
+        $('summaryPanel').setAttribute('aria-hidden', String(!expanded));
+        $('summarySection').classList.toggle('is-collapsed', !expanded);
+      });
       $('rankLimit').addEventListener('change', rankings);
       let diffPayloadReleased = false;
       async function boot() {

@@ -440,7 +440,7 @@ for theme in ['dark','light']:
   diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
   assert diff.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
   summary_columns=diff.locator('#summarySection .summary').evaluate('(e)=>getComputedStyle(e).gridTemplateColumns.split(" ").length')
-  assert summary_columns==(4 if device=='desktop' else 2),summary_columns
+  assert summary_columns==(4 if device=='desktop' else 1),summary_columns
   assert diff.locator('#diffBrowser > .section-head').count()==0
   gross_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#increased').closest('article'))")
   net_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#netSize').closest('article'))")
