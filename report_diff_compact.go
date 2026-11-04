@@ -112,6 +112,10 @@ func writeCompactDiffHTML(output string, stdout io.Writer, encrypted bool, compr
 	if err != nil {
 		return "", 0, err
 	}
+	loadingMarkup, loadingCSS, err := diffLoadingIntegration()
+	if err != nil {
+		return "", 0, err
+	}
 	browserJS, browserCSS, err := diffBrowserSupport()
 	if err != nil {
 		return "", 0, err
@@ -120,10 +124,10 @@ func writeCompactDiffHTML(output string, stdout io.Writer, encrypted bool, compr
 	generatedISO := now.Format(time.RFC3339)
 	generatedDisplay := now.Format("2006-01-02 15:04:05 MST")
 	footer := diffReportFooterContent(encrypted)
-	base := strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl,
+	base := strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "/* DIFF_LOADING_CSS */", loadingCSS, "<!-- DIFF_LOADING_OVERLAY -->", loadingMarkup, "<!-- DIFF_THEME_SWITCH -->", themeControl,
 		"/* NORMAL_BROWSER_CSS */", browserCSS,
 		"/* DIFF_BROWSER_RUNTIME */", strings.Replace(diffBrowserRuntime, "/* NORMAL_BROWSER_FUNCTIONS */", browserJS, 1),
-		"/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", compactDiffPayloadMarker, "<!-- DIFF_FOOTER_CONTENT -->", footer,
+		"/* DIFF_RUNTIME */", diffLoadingRuntime+runtime, "/* DIFF_PAYLOAD */", compactDiffPayloadMarker, "<!-- DIFF_FOOTER_CONTENT -->", footer,
 		"DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate)
 	base = replaceGeneratedMetadata(base, generatedISO, generatedDisplay)
 	marker := strings.Index(base, compactDiffPayloadMarker)

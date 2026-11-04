@@ -18,6 +18,7 @@
     <style>
       /* DIFF_FONTS */
       /* DIFF_THEME_CSS */
+      /* DIFF_LOADING_CSS */
       :root {
         --paper: var(--panel);
         --blue: var(--accent);
@@ -771,6 +772,7 @@
       </div>
     </header>
     <main>
+      <!-- DIFF_LOADING_OVERLAY -->
       <div id="loading" role="status" aria-live="polite">
         Opening comparison…
       </div>
@@ -1199,31 +1201,57 @@
         $('retry').hidden = true;
         $('loading').hidden = false;
         $('loading').textContent = 'Opening comparison…';
+        $('loadingOverlay').hidden = false;
+        $('report').hidden = true;
+        buildLoadingTaskList();
+        setLoadingStep('payload');
         try {
+          await loadingFrame();
           let payload = JSON.parse($('diffData').textContent);
           const binary = payload.format === 'gds-diff-binary-v2';
           if (!binary && payload.format !== 'gds-diff-json-v1') throw new Error('Unsupported comparison format.');
-          let compressed = payload.encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
+          const encrypted = !!payload.encrypted;
+          if (encrypted) setLoadingStep('decrypt');
+          else setLoadingStep('decrypt', 'skipped');
+          let compressed;
+          try {
+            compressed = encrypted ? await decryptReportPayload(payload) : bytesFromReportPayload(payload);
+            setLoadingStep(encrypted ? 'decrypt' : 'payload', 'done');
+          } catch (error) {
+            setLoadingStep(encrypted ? 'decrypt' : 'payload', 'error');
+            throw error;
+          }
           if (typeof DecompressionStream !== 'function') throw new Error('This browser cannot decompress reports. Open this file in a current Chrome, Edge, Firefox, or Safari.');
+          setLoadingStep('decompress');
           const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
           payload = null;
           compressed = null;
           $('diffData').textContent = '';
           diffPayloadReleased = true;
+          await loadingFrame();
           if (binary) {
             data = decodeDiffBinary(new Uint8Array(await new Response(stream).arrayBuffer()));
           } else {
             data = await parseDiffJSONStream(stream);
           }
+          setLoadingStep('decompress', 'done');
+          setLoadingStep('index');
+          await loadingFrame();
           $('diffMode').textContent = 'Diff mode: ' + (data.complete === true ? 'Complete' : 'Changes only');
           indexReport();
           current = data.root;
           summary();
           rankings();
+          setLoadingStep('index', 'done');
+          setLoadingStep('render');
+          await loadingFrame();
           DiffBrowser.initialize(data.root);
+          setLoadingStep('render', 'done');
+          hideLoadingOverlay();
           $('loading').hidden = true;
           $('report').hidden = false;
         } catch (error) {
+          hideLoadingOverlay();
           $('loading').textContent = error.message || 'Unable to open comparison.';
           $('retry').hidden = false;
         }

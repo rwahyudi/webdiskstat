@@ -101,6 +101,10 @@ func renderDiffReport(report *DiffReport, password *string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	loadingMarkup, loadingCSS, err := diffLoadingIntegration()
+	if err != nil {
+		return "", err
+	}
 	browserJS, browserCSS, err := diffBrowserSupport()
 	if err != nil {
 		return "", err
@@ -109,10 +113,10 @@ func renderDiffReport(report *DiffReport, password *string) (string, error) {
 	now := time.Now().Local()
 	generatedISO := now.Format(time.RFC3339)
 	generatedDisplay := now.Format("2006-01-02 15:04:05 MST")
-	rendered := strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "<!-- DIFF_THEME_SWITCH -->", themeControl,
+	rendered := strings.NewReplacer("/* DIFF_FONTS */", embeddedFontCSS(), "/* DIFF_THEME_CSS */", themeCSS, "/* DIFF_LOADING_CSS */", loadingCSS, "<!-- DIFF_LOADING_OVERLAY -->", loadingMarkup, "<!-- DIFF_THEME_SWITCH -->", themeControl,
 		"/* NORMAL_BROWSER_CSS */", browserCSS,
 		"/* DIFF_BROWSER_RUNTIME */", strings.Replace(diffBrowserRuntime, "/* NORMAL_BROWSER_FUNCTIONS */", browserJS, 1),
-		"/* DIFF_RUNTIME */", runtime, "/* DIFF_PAYLOAD */", encoded, "<!-- DIFF_FOOTER_CONTENT -->", footerContent,
+		"/* DIFF_RUNTIME */", diffLoadingRuntime+runtime, "/* DIFF_PAYLOAD */", encoded, "<!-- DIFF_FOOTER_CONTENT -->", footerContent,
 		"DIFF_FAVICON", faviconDataURI()).Replace(diffReportTemplate)
 	rendered = replaceGeneratedMetadata(rendered, generatedISO, generatedDisplay)
 	return fillReportSize(rendered), nil

@@ -108,6 +108,8 @@ The report identifies its mode as **Changes only** (the default) or **Complete**
 
 Comparison reports use the normal report's compact styling and dark/light theme switcher. Theme preferences are remembered when browser storage is available.
 
+Comparison pages also reuse the normal report's loading overlay and spinner, with stage indicators for payload decoding, optional decryption, decompression, directory indexing, and rendering. Loading failures dismiss the overlay and leave the error and Retry control accessible.
+
 The comparison file browser uses the normal report's selection and directory-navigation controls, keyboard shortcuts, sortable/resizable optional columns, path copying, bookmarkable navigation, and virtualized scrolling. Size and file-count shortcuts sort by **After size** and **After file count**; comparison-specific columns remain independently sortable.
 
 The summary and largest-changes sections each span the report width. Largest changes displays 10 entries per category by default, selectable up to 100. Its rankings use one dedicated embedded dataset, independent of file-browser search, filters, sorting, and pagination. Both datasets remain inside the self-contained report and are encrypted together when `--password` is used.
