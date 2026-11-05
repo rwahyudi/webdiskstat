@@ -108,7 +108,7 @@ The report identifies its mode as **Changes only** (the default) or **Complete**
 
 Comparison reports use the normal report's compact styling and dark/light theme switcher. Theme preferences are remembered when browser storage is available.
 
-The comparison summary opens expanded and can be folded away with its header control, leaving the net change visible. Expanding and collapsing animate unless reduced motion is preferred. Capture dates appear prominently beside Before and After, with time and source details below.
+The comparison summary leads with net storage change and a labelled graphic comparing gross increases and decreases. Dated Before/After totals stay paired, while source paths and precise capture times are available under Snapshot details. Status-count shortcuts filter the directory browser; counts describe paths, including directories, not just files. The summary opens expanded and can be folded away while retaining comparison context. Motion respects reduced-motion preferences.
 
 Comparison pages also reuse the normal report's loading overlay and spinner, with stage indicators for payload decoding, optional decryption, decompression, directory indexing, and rendering. Loading failures dismiss the overlay and leave the error and Retry control accessible.
 
