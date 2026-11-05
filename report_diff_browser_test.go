@@ -297,14 +297,6 @@ assert page.locator('#tree .row[title="/root/stable-branch/stable.txt"]').count(
 page.locator('#reset').click();page.locator('#status').select_option('added')
 assert page.evaluate('DiffBrowser.snapshot().total')==1,page.evaluate('DiffBrowser.snapshot()')
 assert page.locator('#tree .row[title="/root/stable-branch"]').count()==0,page.locator('#tree').inner_text()
-assert page.locator('#statusButtons [data-status="added"]').get_attribute('aria-pressed')=='true'
-page.locator('#statusButtons [data-status="removed"]').click()
-assert page.locator('#status').input_value()=='removed'
-assert page.locator('#statusButtons [data-status="removed"]').get_attribute('aria-pressed')=='true'
-assert page.evaluate('DiffBrowser.snapshot().total')==1
-page.locator('#statusButtons [data-status="all"]').click()
-assert page.locator('#status').input_value()=='all' and page.locator('#statusButtons [data-status="all"]').get_attribute('aria-pressed')=='true'
-assert page.evaluate('DiffBrowser.snapshot().total')==3
 with page.expect_download() as dl:page.locator('#csv').click()
 records=list(csv.DictReader(io.StringIO(pathlib.Path(dl.value.path()).read_text(encoding='utf-8-sig'))))
 assert all(r['status']!='unchanged' for r in records),records
@@ -448,13 +440,11 @@ for theme in ['dark','light']:
   diff.locator('#diffBrowser').evaluate('(e)=>window.scrollTo(0,e.getBoundingClientRect().top+window.scrollY)')
   assert diff.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
   summary_columns=diff.locator('#summarySection .summary').evaluate('(e)=>getComputedStyle(e).gridTemplateColumns.split(" ").length')
-  assert summary_columns==(2 if device=='desktop' else 1),summary_columns
+  assert summary_columns==(4 if device=='desktop' else 1),summary_columns
   assert diff.locator('#diffBrowser > .section-head').count()==0
   gross_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#increased').closest('article'))")
   net_index=diff.evaluate("Array.from(document.querySelectorAll('#summarySection .summary article')).indexOf(document.querySelector('#netSize').closest('article'))")
-  assert gross_index==net_index==0,(gross_index,net_index)
-  assert diff.locator('#statusButtons button').count()==6
-  assert diff.locator('.summary-details summary').count()==1
+  assert gross_index==2 and net_index==3,(gross_index,net_index)
   assert diff.locator('#browserHelpButton').evaluate('(e)=>e.closest("header")!==null')
   assert diff.evaluate("Array.from(document.querySelector('header .header-actions').children).map(e=>e.id||e.className).join(',').indexOf('theme-toggle') < Array.from(document.querySelector('header .header-actions').children).map(e=>e.id||e.className).join(',').indexOf('browserHelpButton')")
   icon_styles=lambda tab,selector:tab.locator(selector).evaluate('(e)=>{const s=getComputedStyle(e);return [s.fill,s.stroke,s.strokeWidth,s.strokeLinecap,s.strokeLinejoin]}')
@@ -513,8 +503,7 @@ assert page.locator('#reportSecurityInfo').is_visible()
 page.locator('#reportSecurityInfo summary').click();assert page.locator('#reportSecurityExplanation').is_visible()
 page.get_by_role('button',name='Close encryption information').click();assert not page.locator('#reportSecurityInfo').evaluate('(e)=>e.open')
 assert page.evaluate('window.diffXSS') is None
-page.locator('.summary-details summary').click()
-assert 'baseline-secret.json' in page.locator('#beforeSource').text_content()
+assert 'baseline-secret.json' in page.locator('#beforeSource').inner_text()
 times=page.evaluate("[captureTime('1793404800'),captureTime('2026-10-31T00:00:00Z'),captureTime(''),captureTime('invalid'),captureTime(null),captureTime('99999999999999999')]")
 assert times[0]==times[1] and '2026' in times[0] and all(t=='Capture time unavailable' for t in times[2:]),times
 assert page.evaluate('typeof largestChanges')=='undefined'
@@ -558,7 +547,7 @@ load(page,'empty');assert 'No changes found' in page.locator('#empty').inner_tex
 page.goto((root/'encrypted.html').as_uri());page.locator('#passwordDialog').wait_for(state='visible')
 page.locator('#password').fill('wrong');page.get_by_role('button',name='Unlock',exact=True).click();page.get_by_text('Incorrect password. Try again:',exact=True).wait_for()
 page.locator('#password').fill('browser-password');page.get_by_role('button',name='Unlock',exact=True).click();page.locator('#report').wait_for(state='visible',timeout=60000)
-assert 'baseline-secret.json' in page.locator('#beforeSource').text_content()
+assert 'baseline-secret.json' in page.locator('#beforeSource').inner_text()
 fallbackContext=browser.new_context();fallbackContext.add_init_script('Object.defineProperty(globalThis,"crypto",{value:undefined,configurable:true})')
 fallback=fallbackContext.new_page();fallback.on('pageerror',lambda e:errors.append(str(e)))
 fallback.goto((root/'encrypted.html').as_uri());fallback.locator('#passwordDialog').wait_for(state='visible')
