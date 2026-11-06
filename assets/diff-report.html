@@ -449,12 +449,15 @@
         align-items: center;
         justify-content: space-between;
         flex-wrap: wrap;
-        gap: 8px 12px;
+        gap: 12px;
         padding: 6px 14px;
         border-top: 1px solid var(--line);
-        background: var(--header);
+        background: #181d23;
         color: var(--muted);
         font-size: 16px;
+      }
+      html[data-theme="light"] footer {
+        background: #f8fafc;
       }
       .footer-project {
         flex: 0 1 auto;
@@ -466,7 +469,7 @@
         text-decoration: none;
         white-space: nowrap;
       }
-      .footer-meta { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 12px; min-width: 0; color: var(--ink); line-height: normal; }
+      .footer-meta { display: inline-flex; flex-wrap: nowrap; justify-content: flex-end; gap: 12px; min-width: 0; color: var(--ink); line-height: normal; }
       .footer-project:hover {
         color: var(--ink);
         text-decoration: underline;
@@ -495,18 +498,20 @@
       .report-footer .report-security.encrypted {
         border-color: color-mix(in srgb,var(--accent-2) 60%,var(--line));
         background: color-mix(in srgb,var(--accent-2) 14%,transparent);
-        color: var(--accent-2);
+        color: #99f6e4;
       }
       .report-footer .report-security.plain {
         border-color: color-mix(in srgb,var(--warn) 50%,var(--line));
         background: color-mix(in srgb,var(--warn) 10%,transparent);
-        color: var(--warn);
+        color: #fbbf24;
       }
       html[data-theme="light"] .report-footer .report-security.encrypted {
-        background: color-mix(in srgb,var(--accent-2) 14%,var(--panel));
+        background: #ccfbf1;
+        color: #0f766e;
       }
       html[data-theme="light"] .report-footer .report-security.plain {
-        background: color-mix(in srgb,var(--warn) 14%,var(--panel));
+        background: #fef3c7;
+        color: #92400e;
       }
       .report-footer .security-icon {
         width: 14px;
@@ -696,7 +701,7 @@
         color: inherit;
         stroke: currentColor;
         fill: none;
-        stroke-width: 1.75;
+        stroke-width: 2;
         stroke-linecap: round;
         stroke-linejoin: round;
       }

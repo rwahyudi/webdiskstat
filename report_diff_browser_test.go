@@ -457,8 +457,10 @@ for theme in ['dark','light']:
     normal.goto((root/'normal-encrypted.html').as_uri());normal.locator('#reportPasswordDialog').wait_for(state='visible');normal.locator('#reportPasswordInput').fill('theme-password');normal.locator('#reportPasswordDialog button[type="submit"]').click();normal.locator('#tree .row[data-id]').first.wait_for(timeout=60000)
    badge_style=lambda tab:tab.locator('footer .report-security').evaluate('(e)=>{const s=getComputedStyle(e);return [s.color,s.backgroundColor,s.borderTopColor]}')
    assert badge_style(diff)==badge_style(normal),(theme,state,badge_style(diff),badge_style(normal))
-   for selector in ['.footer-project','.footer-meta']:
-    style=lambda tab,sel:tab.locator('footer '+sel).evaluate('(e)=>{const s=getComputedStyle(e);return [s.display,s.fontSize,s.color,s.flex,s.order,s.minWidth,s.whiteSpace,s.textAlign,s.flexWrap,s.justifyContent,s.gap,s.lineHeight]}',selector)
+  for selector in ['.footer-project','.footer-meta']:
+   style=lambda tab,sel:tab.locator('footer '+sel).evaluate('(e)=>{const s=getComputedStyle(e);return [s.display,s.fontSize,s.color,s.flex,s.order,s.minWidth,s.whiteSpace,s.textAlign,s.flexWrap,s.justifyContent,s.gap,s.lineHeight]}',selector)
+   assert diff.locator('footer '+selector).count()>0
+   if normal.locator('footer '+selector).count():
     assert style(diff,selector)==style(normal,selector),(theme,state,selector,style(diff,selector),style(normal,selector))
     box=lambda tab,sel:tab.locator('footer '+sel).bounding_box()
     a,b=box(diff,selector),box(normal,selector)

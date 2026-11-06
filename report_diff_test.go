@@ -191,7 +191,7 @@ func TestDiffReportHelpIconMatchesNormalReport(t *testing.T) {
 	if theme, help := strings.Index(header, `class="theme-toggle"`), strings.Index(header, `id="browserHelpButton"`); theme < 0 || help < 0 || theme > help {
 		t.Error("theme toggle must precede Help in the header")
 	}
-	for _, style := range []string{"stroke: currentColor;", "fill: none;", "stroke-width: 1.75;", "stroke-linecap: round;", "stroke-linejoin: round;"} {
+	for _, style := range []string{"stroke: currentColor;", "fill: none;", "stroke-width: 2;", "stroke-linecap: round;", "stroke-linejoin: round;"} {
 		if !strings.Contains(diff, style) {
 			t.Errorf("diff help icon is missing normal icon styling %q", style)
 		}
